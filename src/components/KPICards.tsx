@@ -4,9 +4,10 @@ import { Project } from "@/types/project";
 
 interface KPICardsProps {
   project: Project;
+  visibleCards: Record<string, boolean>;
 }
 
-const KPICards = ({ project }: KPICardsProps) => {
+const KPICards = ({ project, visibleCards }: KPICardsProps) => {
   const totalHours = project.workPeriods.reduce((sum, period) => sum + period.totalHours, 0);
   const totalAccumulated = totalHours * project.hourlySalary;
   const remaining = project.targetBudget - totalAccumulated;
@@ -23,36 +24,41 @@ const KPICards = ({ project }: KPICardsProps) => {
 
   const kpis = [
     {
+      key: "totalHours",
       title: "Total Hours",
       value: totalHours.toFixed(1),
       icon: Clock,
       color: "text-primary",
     },
     {
+      key: "totalAccumulated",
       title: "Total Accumulated",
       value: formatCurrency(totalAccumulated),
       icon: DollarSign,
       color: "text-chart-2",
     },
     {
+      key: "targetBudget",
       title: "Target Budget",
       value: formatCurrency(project.targetBudget),
       icon: Target,
       color: "text-chart-3",
     },
     {
+      key: "remaining",
       title: "Remaining",
       value: formatCurrency(remaining),
       icon: remaining >= 0 ? TrendingUp : TrendingDown,
       color: remaining >= 0 ? "text-chart-3" : "text-destructive",
     },
     {
+      key: "progress",
       title: "Progress",
       value: `${progress.toFixed(1)}%`,
       icon: TrendingUp,
       color: "text-primary",
     },
-  ];
+  ].filter((kpi) => visibleCards[kpi.key]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">

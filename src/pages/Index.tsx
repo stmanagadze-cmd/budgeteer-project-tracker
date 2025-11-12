@@ -5,8 +5,11 @@ import ProjectSettings from "@/components/ProjectSettings";
 import KPICards from "@/components/KPICards";
 import BudgetCharts from "@/components/BudgetCharts";
 import WorkPeriods from "@/components/WorkPeriods";
+import SettingsSidebar from "@/components/SettingsSidebar";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 
 const Index = () => {
   const { toast } = useToast();
@@ -20,6 +23,14 @@ const Index = () => {
     },
   ]);
   const [activeProjectId, setActiveProjectId] = useState<string>("1");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [visibleCards, setVisibleCards] = useState({
+    totalHours: true,
+    totalAccumulated: true,
+    targetBudget: true,
+    remaining: true,
+    progress: true,
+  });
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
@@ -109,6 +120,13 @@ const Index = () => {
     });
   };
 
+  const handleToggleCard = (cardKey: string) => {
+    setVisibleCards((prev) => ({
+      ...prev,
+      [cardKey]: !prev[cardKey],
+    }));
+  };
+
   if (!activeProject) {
     return <div>Loading...</div>;
   }
@@ -125,8 +143,19 @@ const Index = () => {
         onDeleteProject={handleDeleteProject}
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSettingsOpen(true)}
+            className="gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Display Settings
+          </Button>
+        </div>
         <ProjectSettings project={activeProject} onUpdateProject={handleUpdateProject} />
-        <KPICards project={activeProject} />
+        <KPICards project={activeProject} visibleCards={visibleCards} />
         <BudgetCharts project={activeProject} />
         <WorkPeriods
           project={activeProject}
@@ -134,6 +163,12 @@ const Index = () => {
           onDeletePeriod={handleDeletePeriod}
         />
       </main>
+      <SettingsSidebar
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        visibleCards={visibleCards}
+        onToggleCard={handleToggleCard}
+      />
     </div>
   );
 };
