@@ -7,16 +7,24 @@ interface BudgetChartsProps {
 }
 
 const BudgetCharts = ({ project }: BudgetChartsProps) => {
-  const totalHours = project.workPeriods.reduce((sum, period) => sum + period.totalHours, 0);
-  const totalAccumulated = totalHours * project.hourlySalary;
-  const remaining = project.targetBudget - totalAccumulated;
+  // Calculate total accumulated cost from work periods
+  const totalAccumulatedCost = project.workPeriods.reduce((sum, period) => {
+    const periodCost = (period.daysWorked * period.hoursPerDay) * project.hourlySalary;
+    return sum + periodCost;
+  }, 0);
+
+  const remaining = project.targetBudget - totalAccumulatedCost;
+  const isOverBudget = totalAccumulatedCost > project.targetBudget;
 
   const budgetData = [
-    { name: "Accumulated", value: totalAccumulated },
+    { name: "Accumulated", value: totalAccumulatedCost },
     { name: "Remaining", value: Math.max(0, remaining) },
   ];
 
-  const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-3))"];
+  const COLORS = [
+    isOverBudget ? "hsl(var(--destructive))" : "hsl(var(--primary))",
+    "hsl(var(--chart-3))"
+  ];
 
   const workTypeData = project.workPeriods.reduce((acc, period) => {
     const existing = acc.find((item) => item.name === period.workType);
