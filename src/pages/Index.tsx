@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import ProjectTabs from "@/components/ProjectTabs";
 import ProjectSettings from "@/components/ProjectSettings";
@@ -9,20 +11,15 @@ import SettingsSidebar from "@/components/SettingsSidebar";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
+import { useProjects } from "@/hooks/useProjects";
 
 const Index = () => {
   const { toast } = useToast();
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: "1",
-      name: "Website Redesign",
-      hourlySalary: 75,
-      targetBudget: 50000,
-      workPeriods: [],
-    },
-  ]);
-  const [activeProjectId, setActiveProjectId] = useState<string>("1");
+  const navigate = useNavigate();
+  const [userId, setUserId] = useState<string | undefined>();
+  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, deleteWorkPeriod } = useProjects(userId);
+  const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [visibleCards, setVisibleCards] = useState({
     totalHours: true,
@@ -32,31 +29,52 @@ const Index = () => {
     progress: true,
   });
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setUserId(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setUserId(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (projects.length > 0 && !activeProjectId) {
+      setActiveProjectId(projects[0].id);
+    }
+  }, [projects, activeProjectId]);
+
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
-  const handleAddProject = () => {
-    const newProject: Project = {
-      id: Date.now().toString(),
+  const handleAddProject = async () => {
+    const newProjectId = await addProject({
       name: `New Project ${projects.length + 1}`,
       hourlySalary: 50,
       targetBudget: 10000,
-      workPeriods: [],
-    };
-    setProjects([...projects, newProject]);
-    setActiveProjectId(newProject.id);
-    toast({
-      title: "Project created",
-      description: `${newProject.name} has been created.`,
     });
+    if (newProjectId) {
+      setActiveProjectId(newProjectId);
+    }
   };
 
-  const handleRenameProject = (id: string) => {
+  const handleRenameProject = async (id: string) => {
     const project = projects.find((p) => p.id === id);
     if (!project) return;
 
     const newName = prompt("Enter new project name:", project.name);
     if (newName && newName.trim()) {
-      setProjects(projects.map((p) => (p.id === id ? { ...p, name: newName.trim() } : p)));
+      await updateProject(id, { name: newName.trim() });
       toast({
         title: "Project renamed",
         description: `Project renamed to "${newName.trim()}".`,
@@ -64,7 +82,7 @@ const Index = () => {
     }
   };
 
-  const handleDeleteProject = (id: string) => {
+  const handleDeleteProject = async (id: string) => {
     if (projects.length === 1) {
       toast({
         title: "Cannot delete",
@@ -78,46 +96,26 @@ const Index = () => {
     if (!project) return;
 
     if (confirm(`Are you sure you want to delete "${project.name}"?`)) {
-      const newProjects = projects.filter((p) => p.id !== id);
-      setProjects(newProjects);
+      await deleteProject(id);
       if (activeProjectId === id) {
-        setActiveProjectId(newProjects[0].id);
+        const remainingProjects = projects.filter((p) => p.id !== id);
+        if (remainingProjects.length > 0) {
+          setActiveProjectId(remainingProjects[0].id);
+        }
       }
-      toast({
-        title: "Project deleted",
-        description: `"${project.name}" has been deleted.`,
-      });
     }
   };
 
-  const handleUpdateProject = (updates: Partial<Project>) => {
-    setProjects(projects.map((p) => (p.id === activeProjectId ? { ...p, ...updates } : p)));
+  const handleUpdateProject = async (updates: Partial<Project>) => {
+    await updateProject(activeProjectId, updates);
   };
 
-  const handleAddPeriod = (period: Omit<WorkPeriod, "id">) => {
-    const newPeriod: WorkPeriod = {
-      ...period,
-      id: Date.now().toString(),
-    };
-    setProjects(
-      projects.map((p) =>
-        p.id === activeProjectId ? { ...p, workPeriods: [...p.workPeriods, newPeriod] } : p
-      )
-    );
+  const handleAddPeriod = async (period: Omit<WorkPeriod, "id">) => {
+    await addWorkPeriod(activeProjectId, period);
   };
 
-  const handleDeletePeriod = (periodId: string) => {
-    setProjects(
-      projects.map((p) =>
-        p.id === activeProjectId
-          ? { ...p, workPeriods: p.workPeriods.filter((wp) => wp.id !== periodId) }
-          : p
-      )
-    );
-    toast({
-      title: "Period deleted",
-      description: "Work period has been removed.",
-    });
+  const handleDeletePeriod = async (periodId: string) => {
+    await deleteWorkPeriod(periodId);
   };
 
   const handleToggleCard = (cardKey: string) => {
@@ -127,8 +125,13 @@ const Index = () => {
     }));
   };
 
-  if (!activeProject) {
-    return <div>Loading...</div>;
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
+  if (loading || !activeProject) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   }
 
   return (
@@ -143,7 +146,7 @@ const Index = () => {
         onDeleteProject={handleDeleteProject}
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -152,6 +155,15 @@ const Index = () => {
           >
             <Settings className="h-4 w-4" />
             Display Settings
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
           </Button>
         </div>
         <ProjectSettings project={activeProject} onUpdateProject={handleUpdateProject} />
