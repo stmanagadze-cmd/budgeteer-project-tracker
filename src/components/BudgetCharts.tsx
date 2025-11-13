@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Project } from "@/types/project";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface BudgetChartsProps {
   project: Project;
@@ -16,15 +16,12 @@ const BudgetCharts = ({ project }: BudgetChartsProps) => {
   const remaining = project.targetBudget - totalAccumulatedCost;
   const isOverBudget = totalAccumulatedCost > project.targetBudget;
 
-  const budgetData = [
-    { name: "Accumulated", value: totalAccumulatedCost },
-    { name: "Remaining", value: Math.max(0, remaining) },
-  ];
-
-  const COLORS = [
-    isOverBudget ? "hsl(var(--destructive))" : "hsl(var(--primary))",
-    "hsl(var(--chart-3))"
-  ];
+  // Create accumulated cost data per work period
+  const accumulatedCostData = project.workPeriods.map((period, index) => ({
+    name: `Period ${index + 1}`,
+    cost: period.periodCost,
+    date: period.date
+  }));
 
   const workTypeData = project.workPeriods.reduce((acc, period) => {
     const existing = acc.find((item) => item.name === period.workType);
@@ -40,28 +37,17 @@ const BudgetCharts = ({ project }: BudgetChartsProps) => {
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Budget Overview</CardTitle>
+          <CardTitle>Total Accumulated Money</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={budgetData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {budgetData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
+            <BarChart data={accumulatedCostData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
               <Tooltip formatter={(value) => `$${Number(value).toFixed(0)}`} />
-              <Legend />
-            </PieChart>
+              <Bar dataKey="cost" fill="hsl(var(--primary))" />
+            </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
