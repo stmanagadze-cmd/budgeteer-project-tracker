@@ -18,7 +18,7 @@ const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
-  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, deleteWorkPeriod } = useProjects(userId);
+  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage } = useProjects(userId);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [visibleCards, setVisibleCards] = useState({
@@ -124,6 +124,10 @@ const Index = () => {
     await deleteWorkPeriod(periodId);
   };
 
+  const handleUpdatePeriod = async (periodId: string, period: Partial<WorkPeriod>) => {
+    await updateWorkPeriod(periodId, period);
+  };
+
   const handleToggleCard = (cardKey: string) => {
     setVisibleCards((prev) => ({
       ...prev,
@@ -182,7 +186,10 @@ const Index = () => {
         <WorkPeriods
           project={activeProject}
           onAddPeriod={handleAddPeriod}
+          onUpdatePeriod={handleUpdatePeriod}
           onDeletePeriod={handleDeletePeriod}
+          onUploadImage={uploadWorkPeriodImage}
+          onDeleteImage={deleteWorkPeriodImage}
         />
       </main>
       <SettingsSidebar

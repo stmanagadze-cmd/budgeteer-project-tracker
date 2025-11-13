@@ -43,6 +43,7 @@ export const useProjects = (userId: string | undefined) => {
               location: wp.location,
               totalHours: Number(wp.total_hours),
               periodCost: Number(wp.period_cost),
+              images: wp.images || [],
             })),
         }));
 
@@ -176,6 +177,7 @@ export const useProjects = (userId: string | undefined) => {
         location: period.location,
         total_hours: period.totalHours,
         period_cost: period.periodCost,
+        images: period.images || [],
       });
 
       if (error) throw error;
@@ -193,8 +195,60 @@ export const useProjects = (userId: string | undefined) => {
     }
   };
 
+  const updateWorkPeriod = async (periodId: string, period: Partial<WorkPeriod>) => {
+    try {
+      const updateData: any = {};
+      if (period.date !== undefined) updateData.date = period.date;
+      if (period.teamSize !== undefined) updateData.team_size = period.teamSize;
+      if (period.daysWorked !== undefined) updateData.days_worked = period.daysWorked;
+      if (period.hoursPerDay !== undefined) updateData.hours_per_day = period.hoursPerDay;
+      if (period.workType !== undefined) updateData.work_type = period.workType;
+      if (period.location !== undefined) updateData.location = period.location;
+      if (period.totalHours !== undefined) updateData.total_hours = period.totalHours;
+      if (period.periodCost !== undefined) updateData.period_cost = period.periodCost;
+      if (period.images !== undefined) updateData.images = period.images;
+
+      const { error } = await (supabase as any)
+        .from("work_periods")
+        .update(updateData)
+        .eq("id", periodId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Period updated",
+        description: "Work period has been updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error updating period",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const deleteWorkPeriod = async (periodId: string) => {
     try {
+      // First, get the images to delete
+      const { data: period } = await (supabase as any)
+        .from("work_periods")
+        .select("images")
+        .eq("id", periodId)
+        .single();
+
+      // Delete images from storage if they exist
+      if (period?.images && period.images.length > 0) {
+        const imagePaths = period.images.map((url: string) => {
+          const urlParts = url.split('/');
+          return `${periodId}/${urlParts[urlParts.length - 1]}`;
+        });
+        
+        await supabase.storage
+          .from("work-period-images")
+          .remove(imagePaths);
+      }
+
       const { error } = await (supabase as any).from("work_periods").delete().eq("id", periodId);
 
       if (error) throw error;
@@ -212,6 +266,53 @@ export const useProjects = (userId: string | undefined) => {
     }
   };
 
+  const uploadWorkPeriodImage = async (periodId: string, file: File) => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${periodId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("work-period-images")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("work-period-images")
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: any) {
+      toast({
+        title: "Error uploading image",
+        description: error.message,
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
+  const deleteWorkPeriodImage = async (periodId: string, imageUrl: string) => {
+    try {
+      const urlParts = imageUrl.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const filePath = `${periodId}/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("work-period-images")
+        .remove([filePath]);
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Error deleting image",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     projects,
     loading,
@@ -219,6 +320,9 @@ export const useProjects = (userId: string | undefined) => {
     updateProject,
     deleteProject,
     addWorkPeriod,
+    updateWorkPeriod,
     deleteWorkPeriod,
+    uploadWorkPeriodImage,
+    deleteWorkPeriodImage,
   };
 };

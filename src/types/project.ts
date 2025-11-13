@@ -8,6 +8,7 @@ export interface WorkPeriod {
   location: string;
   totalHours: number;
   periodCost: number;
+  images: string[];
 }
 
 export interface Project {
