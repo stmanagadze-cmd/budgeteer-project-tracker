@@ -216,7 +216,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating HTML report for project:', project.name);
+    console.log('Generating HTML report for project ID:', project.id.substring(0, 8));
 
     const htmlContent = generateHTMLReport(project);
 

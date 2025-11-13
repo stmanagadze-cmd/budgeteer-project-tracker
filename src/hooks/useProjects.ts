@@ -26,12 +26,36 @@ export const useProjects = (userId: string | undefined) => {
 
         if (periodsError) throw periodsError;
 
+        // Generate signed URLs for images in private bucket
+        const periodsWithSignedUrls = await Promise.all(
+          (periodsData || []).map(async (wp: any) => {
+            const signedImages = await Promise.all(
+              (wp.images || []).map(async (imageUrl: string) => {
+                // Extract the file path from the stored path or URL
+                const urlParts = imageUrl.split('/');
+                const bucketIndex = urlParts.findIndex(part => part === 'work-period-images');
+                if (bucketIndex === -1) return imageUrl;
+                
+                const filePath = urlParts.slice(bucketIndex + 1).join('/');
+                
+                const { data, error } = await supabase.storage
+                  .from('work-period-images')
+                  .createSignedUrl(filePath, 3600); // 1 hour expiry
+                
+                return error ? imageUrl : data.signedUrl;
+              })
+            );
+            
+            return { ...wp, signedImages };
+          })
+        );
+
         const projectsWithPeriods: Project[] = (projectsData || []).map((p: any) => ({
           id: p.id,
           name: p.name,
           hourlySalary: Number(p.hourly_salary),
           targetBudget: Number(p.target_budget),
-          workPeriods: (periodsData || [])
+          workPeriods: periodsWithSignedUrls
             .filter((wp: any) => wp.project_id === p.id)
             .map((wp: any) => ({
               id: wp.id,
@@ -43,7 +67,7 @@ export const useProjects = (userId: string | undefined) => {
               location: wp.location,
               totalHours: Number(wp.total_hours),
               periodCost: Number(wp.period_cost),
-              images: wp.images || [],
+              images: wp.signedImages || [],
             })),
         }));
 
@@ -278,6 +302,8 @@ export const useProjects = (userId: string | undefined) => {
 
       if (uploadError) throw uploadError;
 
+      // Store the file path instead of public URL since bucket is now private
+      // The file path will be converted to signed URL when fetching
       const { data: { publicUrl } } = supabase.storage
         .from("work-period-images")
         .getPublicUrl(filePath);
