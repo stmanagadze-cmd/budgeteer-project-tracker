@@ -11,7 +11,7 @@ import SettingsSidebar from "@/components/SettingsSidebar";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Settings, LogOut } from "lucide-react";
+import { Settings, LogOut, FileDown } from "lucide-react";
 import { useProjects } from "@/hooks/useProjects";
 
 const Index = () => {
@@ -140,6 +140,46 @@ const Index = () => {
     navigate("/auth");
   };
 
+  const handleExportPDF = async () => {
+    if (!activeProject) return;
+
+    try {
+      toast({
+        title: "Generating PDF",
+        description: "Please wait while we generate your report...",
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-pdf-report', {
+        body: { project: activeProject },
+      });
+
+      if (error) throw error;
+
+      // Create a blob from the response
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "PDF Generated",
+        description: "Your report has been downloaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate PDF report.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   }
@@ -161,6 +201,15 @@ const Index = () => {
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
         <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            className="gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            Export PDF
+          </Button>
           <Button
             variant="outline"
             size="sm"
