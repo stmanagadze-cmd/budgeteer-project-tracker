@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,16 +26,178 @@ interface Project {
   workPeriods: WorkPeriod[];
 }
 
-async function fetchImageAsBytes(url: string): Promise<Uint8Array | null> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    const arrayBuffer = await response.arrayBuffer();
-    return new Uint8Array(arrayBuffer);
-  } catch (error) {
-    console.error('Error fetching image:', error);
-    return null;
-  }
+function generateHTMLReport(project: Project): string {
+  const totalHours = project.workPeriods.reduce((sum, p) => sum + p.totalHours, 0);
+  const totalCost = project.workPeriods.reduce((sum, p) => sum + p.periodCost, 0);
+  const remaining = project.targetBudget - totalCost;
+  const progress = (totalCost / project.targetBudget) * 100;
+
+  const periodsHTML = project.workPeriods.map((period, index) => `
+    <div class="period">
+      <h3>Period ${index + 1} - ${new Date(period.date).toLocaleDateString()}</h3>
+      <div class="period-details">
+        <p><strong>Work Type:</strong> ${period.workType}</p>
+        <p><strong>Location:</strong> ${period.location}</p>
+        <p><strong>Team Size:</strong> ${period.teamSize}</p>
+        <p><strong>Days Worked:</strong> ${period.daysWorked}</p>
+        <p><strong>Hours/Day:</strong> ${period.hoursPerDay}</p>
+        <p><strong>Total Hours:</strong> ${period.totalHours}</p>
+        <p><strong>Cost:</strong> $${period.periodCost.toFixed(2)}</p>
+      </div>
+      ${period.images && period.images.length > 0 ? `
+        <div class="images">
+          <p><strong>Images:</strong> ${period.images.length} attached</p>
+          ${period.images.slice(0, 1).map(img => `<img src="${img}" alt="Period image" />`).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${project.name} - Budget Report</title>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          font-family: Arial, sans-serif;
+          padding: 40px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        h1 {
+          color: #333;
+          margin-bottom: 30px;
+          border-bottom: 3px solid #ff6b35;
+          padding-bottom: 10px;
+        }
+        .project-info {
+          background: #f5f5f5;
+          padding: 20px;
+          border-radius: 8px;
+          margin-bottom: 30px;
+        }
+        .project-info h2 {
+          color: #ff6b35;
+          margin-bottom: 15px;
+        }
+        .project-info p {
+          margin: 8px 0;
+          font-size: 14px;
+        }
+        .summary {
+          background: #fff3e0;
+          padding: 20px;
+          border-radius: 8px;
+          margin-bottom: 30px;
+          border-left: 4px solid #ff6b35;
+        }
+        .summary h2 {
+          color: #ff6b35;
+          margin-bottom: 15px;
+        }
+        .summary p {
+          margin: 10px 0;
+          font-size: 16px;
+        }
+        .remaining {
+          color: ${remaining < 0 ? '#d32f2f' : '#2e7d32'};
+          font-weight: bold;
+        }
+        .periods {
+          margin-top: 30px;
+        }
+        .periods h2 {
+          color: #ff6b35;
+          margin-bottom: 20px;
+        }
+        .period {
+          background: white;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 20px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .period h3 {
+          color: #333;
+          margin-bottom: 15px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #eee;
+        }
+        .period-details {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .period-details p {
+          font-size: 14px;
+          color: #555;
+        }
+        .images {
+          margin-top: 15px;
+          padding-top: 15px;
+          border-top: 1px solid #eee;
+        }
+        .images img {
+          max-width: 200px;
+          height: auto;
+          border-radius: 4px;
+          margin-top: 10px;
+        }
+        .footer {
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 1px solid #ddd;
+          text-align: center;
+          color: #888;
+          font-size: 12px;
+        }
+        @media print {
+          body {
+            padding: 20px;
+          }
+          .period {
+            page-break-inside: avoid;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <h1>Project Budget Report</h1>
+      
+      <div class="project-info">
+        <h2>Project Details</h2>
+        <p><strong>Project Name:</strong> ${project.name}</p>
+        <p><strong>Hourly Rate:</strong> $${project.hourlySalary.toFixed(2)}</p>
+        <p><strong>Target Budget:</strong> $${project.targetBudget.toFixed(2)}</p>
+      </div>
+
+      <div class="summary">
+        <h2>Summary</h2>
+        <p><strong>Total Hours:</strong> ${totalHours.toFixed(2)}</p>
+        <p><strong>Total Cost:</strong> $${totalCost.toFixed(2)}</p>
+        <p class="remaining"><strong>Remaining Budget:</strong> $${remaining.toFixed(2)}</p>
+        <p><strong>Progress:</strong> ${progress.toFixed(1)}%</p>
+      </div>
+
+      <div class="periods">
+        <h2>Work Periods</h2>
+        ${periodsHTML}
+      </div>
+
+      <div class="footer">
+        Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+      </div>
+    </body>
+    </html>
+  `;
 }
 
 serve(async (req) => {
@@ -55,233 +216,21 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating PDF for project:', project.name);
+    console.log('Generating HTML report for project:', project.name);
 
-    // Create a new PDF document
-    const pdfDoc = await PDFDocument.create();
-    const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-    const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const htmlContent = generateHTMLReport(project);
 
-    // Add first page
-    let page = pdfDoc.addPage([595.28, 841.89]); // A4 size
-    const { width, height } = page.getSize();
-    let yPosition = height - 50;
-
-    // Title
-    page.drawText('Project Budget Report', {
-      x: 50,
-      y: yPosition,
-      size: 24,
-      font: timesRomanBold,
-      color: rgb(0, 0, 0),
-    });
-    yPosition -= 40;
-
-    // Project Details
-    page.drawText(`Project: ${project.name}`, {
-      x: 50,
-      y: yPosition,
-      size: 14,
-      font: timesRomanBold,
-    });
-    yPosition -= 25;
-
-    page.drawText(`Hourly Rate: $${project.hourlySalary.toFixed(2)}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: timesRomanFont,
-    });
-    yPosition -= 20;
-
-    page.drawText(`Target Budget: $${project.targetBudget.toFixed(2)}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: timesRomanFont,
-    });
-    yPosition -= 30;
-
-    // Calculate summary
-    const totalHours = project.workPeriods.reduce((sum, p) => sum + p.totalHours, 0);
-    const totalCost = project.workPeriods.reduce((sum, p) => sum + p.periodCost, 0);
-    const remaining = project.targetBudget - totalCost;
-    const progress = (totalCost / project.targetBudget) * 100;
-
-    // Summary Section
-    page.drawText('Summary', {
-      x: 50,
-      y: yPosition,
-      size: 16,
-      font: timesRomanBold,
-    });
-    yPosition -= 25;
-
-    page.drawText(`Total Hours: ${totalHours.toFixed(2)}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: timesRomanFont,
-    });
-    yPosition -= 20;
-
-    page.drawText(`Total Cost: $${totalCost.toFixed(2)}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: timesRomanFont,
-    });
-    yPosition -= 20;
-
-    page.drawText(`Remaining Budget: $${remaining.toFixed(2)}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: timesRomanFont,
-      color: remaining < 0 ? rgb(0.8, 0, 0) : rgb(0, 0.5, 0),
-    });
-    yPosition -= 20;
-
-    page.drawText(`Progress: ${progress.toFixed(1)}%`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: timesRomanFont,
-    });
-    yPosition -= 40;
-
-    // Work Periods Section
-    page.drawText('Work Periods', {
-      x: 50,
-      y: yPosition,
-      size: 16,
-      font: timesRomanBold,
-    });
-    yPosition -= 30;
-
-    for (let i = 0; i < project.workPeriods.length; i++) {
-      const period = project.workPeriods[i];
-
-      // Check if we need a new page
-      if (yPosition < 150) {
-        page = pdfDoc.addPage([595.28, 841.89]);
-        yPosition = height - 50;
-      }
-
-      // Period header
-      page.drawText(`Period ${i + 1} - ${new Date(period.date).toLocaleDateString()}`, {
-        x: 50,
-        y: yPosition,
-        size: 13,
-        font: timesRomanBold,
-      });
-      yPosition -= 20;
-
-      // Period details
-      const details = [
-        `Work Type: ${period.workType}`,
-        `Location: ${period.location}`,
-        `Team Size: ${period.teamSize}`,
-        `Days Worked: ${period.daysWorked}`,
-        `Hours/Day: ${period.hoursPerDay}`,
-        `Total Hours: ${period.totalHours}`,
-        `Cost: $${period.periodCost.toFixed(2)}`,
-      ];
-
-      for (const detail of details) {
-        page.drawText(detail, {
-          x: 70,
-          y: yPosition,
-          size: 10,
-          font: timesRomanFont,
-        });
-        yPosition -= 15;
-      }
-
-      // Add images if they exist
-      if (period.images && period.images.length > 0) {
-        page.drawText(`Images: ${period.images.length} attached`, {
-          x: 70,
-          y: yPosition,
-          size: 10,
-          font: timesRomanFont,
-          color: rgb(0, 0, 0.8),
-        });
-        yPosition -= 20;
-
-        // Try to embed first image as preview
-        if (period.images[0]) {
-          const imageBytes = await fetchImageAsBytes(period.images[0]);
-          if (imageBytes) {
-            try {
-              let embeddedImage;
-              if (period.images[0].toLowerCase().includes('.png')) {
-                embeddedImage = await pdfDoc.embedPng(imageBytes);
-              } else {
-                embeddedImage = await pdfDoc.embedJpg(imageBytes);
-              }
-
-              const imgDims = embeddedImage.scale(0.15);
-              
-              // Check if we need a new page for the image
-              if (yPosition - imgDims.height < 50) {
-                page = pdfDoc.addPage([595.28, 841.89]);
-                yPosition = height - 50;
-              }
-
-              page.drawImage(embeddedImage, {
-                x: 70,
-                y: yPosition - imgDims.height,
-                width: imgDims.width,
-                height: imgDims.height,
-              });
-              yPosition -= imgDims.height + 10;
-            } catch (error) {
-              console.error('Error embedding image:', error);
-            }
-          }
-        }
-      }
-
-      yPosition -= 10;
-      
-      // Draw separator line
-      page.drawLine({
-        start: { x: 50, y: yPosition },
-        end: { x: width - 50, y: yPosition },
-        thickness: 0.5,
-        color: rgb(0.7, 0.7, 0.7),
-      });
-      yPosition -= 20;
-    }
-
-    // Footer on last page
-    const pages = pdfDoc.getPages();
-    const lastPage = pages[pages.length - 1];
-    lastPage.drawText(`Generated on ${new Date().toLocaleDateString()}`, {
-      x: 50,
-      y: 30,
-      size: 8,
-      font: timesRomanFont,
-      color: rgb(0.5, 0.5, 0.5),
-    });
-
-    // Serialize the PDF
-    const pdfBytes = await pdfDoc.save();
-
-    console.log('PDF generated successfully, size:', pdfBytes.length);
-
-    return new Response(pdfBytes, {
+    return new Response(htmlContent, {
       headers: {
         ...corsHeaders,
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf"`,
+        'Content-Type': 'text/html',
+        'Content-Disposition': `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.html"`,
       },
     });
   } catch (error) {
-    console.error('Error generating PDF:', error);
+    console.error('Error generating report:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

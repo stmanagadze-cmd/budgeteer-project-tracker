@@ -145,7 +145,7 @@ const Index = () => {
 
     try {
       toast({
-        title: "Generating PDF",
+        title: "Generating Report",
         description: "Please wait while we generate your report...",
       });
 
@@ -155,26 +155,26 @@ const Index = () => {
 
       if (error) throw error;
 
-      // Create a blob from the response
-      const blob = new Blob([data], { type: 'application/pdf' });
+      // Create a blob from the HTML response
+      const blob = new Blob([data], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`;
+      link.download = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.html`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
       toast({
-        title: "PDF Generated",
-        description: "Your report has been downloaded successfully.",
+        title: "Report Generated",
+        description: "Your HTML report has been downloaded. Open it in a browser and use Print to save as PDF.",
       });
     } catch (error: any) {
-      console.error('Error generating PDF:', error);
+      console.error('Error generating report:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to generate PDF report.",
+        description: error.message || "Failed to generate report.",
         variant: "destructive",
       });
     }
@@ -208,7 +208,7 @@ const Index = () => {
             className="gap-2"
           >
             <FileDown className="h-4 w-4" />
-            Export PDF
+            Export Report
           </Button>
           <Button
             variant="outline"
