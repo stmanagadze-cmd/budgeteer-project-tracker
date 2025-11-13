@@ -24,9 +24,9 @@ const Index = () => {
   const [visibleCards, setVisibleCards] = useState({
     totalHours: true,
     totalAccumulated: true,
-    targetBudget: true,
-    remaining: true,
-    progress: true,
+    targetBudget: false,
+    remaining: false,
+    progress: false,
   });
 
   useEffect(() => {
