@@ -1,9 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// HTML sanitization function
+function escapeHtml(text: string): string {
+  const map: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
 
 interface WorkPeriod {
   id: string;
@@ -32,12 +45,15 @@ function generateHTMLReport(project: Project): string {
   const remaining = project.targetBudget - totalCost;
   const progress = (totalCost / project.targetBudget) * 100;
 
+  // Sanitize all user-provided strings to prevent XSS
+  const safeName = escapeHtml(project.name);
+  
   const periodsHTML = project.workPeriods.map((period, index) => `
     <div class="period">
       <h3>Period ${index + 1} - ${new Date(period.date).toLocaleDateString()}</h3>
       <div class="period-details">
-        <p><strong>Work Type:</strong> ${period.workType}</p>
-        <p><strong>Location:</strong> ${period.location}</p>
+        <p><strong>Work Type:</strong> ${escapeHtml(period.workType)}</p>
+        <p><strong>Location:</strong> ${escapeHtml(period.location)}</p>
         <p><strong>Team Size:</strong> ${period.teamSize}</p>
         <p><strong>Days Worked:</strong> ${period.daysWorked}</p>
         <p><strong>Hours/Day:</strong> ${period.hoursPerDay}</p>
@@ -47,7 +63,7 @@ function generateHTMLReport(project: Project): string {
       ${period.images && period.images.length > 0 ? `
         <div class="images">
           <p><strong>Images:</strong> ${period.images.length} attached</p>
-          ${period.images.slice(0, 1).map(img => `<img src="${img}" alt="Period image" />`).join('')}
+          ${period.images.slice(0, 1).map(img => `<img src="${escapeHtml(img)}" alt="Period image" />`).join('')}
         </div>
       ` : ''}
     </div>
@@ -174,7 +190,7 @@ function generateHTMLReport(project: Project): string {
       
       <div class="project-info">
         <h2>Project Details</h2>
-        <p><strong>Project Name:</strong> ${project.name}</p>
+        <p><strong>Project Name:</strong> ${safeName}</p>
         <p><strong>Hourly Rate:</strong> $${project.hourlySalary.toFixed(2)}</p>
         <p><strong>Target Budget:</strong> $${project.targetBudget.toFixed(2)}</p>
       </div>
@@ -207,30 +223,120 @@ serve(async (req) => {
   }
 
   try {
+    // Check for authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('Missing authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Missing authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create Supabase client with auth header
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
+
+    // Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Authentication failed:', authError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse and validate request body
     const { project } = await req.json() as { project: Project };
 
-    if (!project) {
+    if (!project || !project.id) {
       return new Response(
-        JSON.stringify({ error: 'Project data is required' }),
+        JSON.stringify({ error: 'Project data with valid ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Generating HTML report for project ID:', project.id.substring(0, 8));
+    // Verify user owns the project
+    const { data: projectData, error: projectError } = await supabaseClient
+      .from('projects')
+      .select('id, user_id')
+      .eq('id', project.id)
+      .single();
+
+    if (projectError || !projectData) {
+      console.error('Project not found:', projectError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Project not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (projectData.user_id !== user.id) {
+      console.error('User does not own project:', { projectId: project.id.substring(0, 8), userId: user.id.substring(0, 8) });
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: You do not have access to this project' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate numeric values are within reasonable ranges
+    if (project.hourlySalary < 0 || project.hourlySalary > 10000) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid hourly salary value' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (project.targetBudget < 0 || project.targetBudget > 10000000) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid target budget value' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate work periods
+    for (const period of project.workPeriods) {
+      if (period.teamSize < 1 || period.teamSize > 1000) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid team size in work period' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (period.hoursPerDay < 1 || period.hoursPerDay > 24) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid hours per day in work period' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    console.log('Generating HTML report for project ID:', project.id.substring(0, 8), 'for user:', user.id.substring(0, 8));
 
     const htmlContent = generateHTMLReport(project);
+    
+    // Sanitize filename
+    const safeFilename = project.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').substring(0, 100);
 
     return new Response(htmlContent, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/html',
-        'Content-Disposition': `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.html"`,
+        'Content-Disposition': `attachment; filename="${safeFilename}_report.html"`,
       },
     });
   } catch (error) {
-    console.error('Error generating report:', error);
+    console.error('Error generating report:', error instanceof Error ? error.message : 'Unknown error');
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
+import { workPeriodSchema, projectSchema } from "@/lib/validation";
+import { ZodError } from "zod";
 
 export const useProjects = (userId: string | undefined) => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -120,13 +122,20 @@ export const useProjects = (userId: string | undefined) => {
     if (!userId) return;
 
     try {
+      // Validate input
+      const validatedProject = projectSchema.parse({
+        name: project.name,
+        hourlySalary: project.hourlySalary,
+        targetBudget: project.targetBudget,
+      });
+
       const { data, error } = await (supabase as any)
         .from("projects")
         .insert({
           user_id: userId,
-          name: project.name,
-          hourly_salary: project.hourlySalary,
-          target_budget: project.targetBudget,
+          name: validatedProject.name,
+          hourly_salary: validatedProject.hourlySalary,
+          target_budget: validatedProject.targetBudget,
         })
         .select()
         .single();
@@ -135,25 +144,40 @@ export const useProjects = (userId: string | undefined) => {
 
       toast({
         title: "Project created",
-        description: `${project.name} has been created.`,
+        description: `${validatedProject.name} has been created.`,
       });
 
       return data?.id;
     } catch (error: any) {
-      toast({
-        title: "Error creating project",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error instanceof ZodError) {
+        toast({
+          title: "Validation error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error creating project",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const updateProject = async (id: string, updates: Partial<Project>) => {
     try {
+      // Validate only the fields being updated
+      const validatedUpdates = projectSchema.partial().parse({
+        name: updates.name,
+        hourlySalary: updates.hourlySalary,
+        targetBudget: updates.targetBudget,
+      });
+
       const updateData: any = {};
-      if (updates.name !== undefined) updateData.name = updates.name;
-      if (updates.hourlySalary !== undefined) updateData.hourly_salary = updates.hourlySalary;
-      if (updates.targetBudget !== undefined) updateData.target_budget = updates.targetBudget;
+      if (validatedUpdates.name !== undefined) updateData.name = validatedUpdates.name;
+      if (validatedUpdates.hourlySalary !== undefined) updateData.hourly_salary = validatedUpdates.hourlySalary;
+      if (validatedUpdates.targetBudget !== undefined) updateData.target_budget = validatedUpdates.targetBudget;
 
       const { error } = await (supabase as any)
         .from("projects")
@@ -162,11 +186,19 @@ export const useProjects = (userId: string | undefined) => {
 
       if (error) throw error;
     } catch (error: any) {
-      toast({
-        title: "Error updating project",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error instanceof ZodError) {
+        toast({
+          title: "Validation error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error updating project",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -191,17 +223,20 @@ export const useProjects = (userId: string | undefined) => {
 
   const addWorkPeriod = async (projectId: string, period: Omit<WorkPeriod, "id">) => {
     try {
+      // Validate input
+      const validatedPeriod = workPeriodSchema.parse(period);
+
       const { error } = await (supabase as any).from("work_periods").insert({
         project_id: projectId,
-        date: period.date,
-        team_size: period.teamSize,
-        days_worked: period.daysWorked,
-        hours_per_day: period.hoursPerDay,
-        work_type: period.workType,
-        location: period.location,
-        total_hours: period.totalHours,
-        period_cost: period.periodCost,
-        images: period.images || [],
+        date: validatedPeriod.date,
+        team_size: validatedPeriod.teamSize,
+        days_worked: validatedPeriod.daysWorked,
+        hours_per_day: validatedPeriod.hoursPerDay,
+        work_type: validatedPeriod.workType,
+        location: validatedPeriod.location,
+        total_hours: validatedPeriod.totalHours,
+        period_cost: validatedPeriod.periodCost,
+        images: validatedPeriod.images || [],
       });
 
       if (error) throw error;
@@ -211,26 +246,37 @@ export const useProjects = (userId: string | undefined) => {
         description: "Work period has been added.",
       });
     } catch (error: any) {
-      toast({
-        title: "Error adding period",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error instanceof ZodError) {
+        toast({
+          title: "Validation error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error adding period",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const updateWorkPeriod = async (periodId: string, period: Partial<WorkPeriod>) => {
     try {
+      // Validate only the fields being updated
+      const validatedPeriod = workPeriodSchema.partial().parse(period);
+
       const updateData: any = {};
-      if (period.date !== undefined) updateData.date = period.date;
-      if (period.teamSize !== undefined) updateData.team_size = period.teamSize;
-      if (period.daysWorked !== undefined) updateData.days_worked = period.daysWorked;
-      if (period.hoursPerDay !== undefined) updateData.hours_per_day = period.hoursPerDay;
-      if (period.workType !== undefined) updateData.work_type = period.workType;
-      if (period.location !== undefined) updateData.location = period.location;
-      if (period.totalHours !== undefined) updateData.total_hours = period.totalHours;
-      if (period.periodCost !== undefined) updateData.period_cost = period.periodCost;
-      if (period.images !== undefined) updateData.images = period.images;
+      if (validatedPeriod.date !== undefined) updateData.date = validatedPeriod.date;
+      if (validatedPeriod.teamSize !== undefined) updateData.team_size = validatedPeriod.teamSize;
+      if (validatedPeriod.daysWorked !== undefined) updateData.days_worked = validatedPeriod.daysWorked;
+      if (validatedPeriod.hoursPerDay !== undefined) updateData.hours_per_day = validatedPeriod.hoursPerDay;
+      if (validatedPeriod.workType !== undefined) updateData.work_type = validatedPeriod.workType;
+      if (validatedPeriod.location !== undefined) updateData.location = validatedPeriod.location;
+      if (validatedPeriod.totalHours !== undefined) updateData.total_hours = validatedPeriod.totalHours;
+      if (validatedPeriod.periodCost !== undefined) updateData.period_cost = validatedPeriod.periodCost;
+      if (validatedPeriod.images !== undefined) updateData.images = validatedPeriod.images;
 
       const { error } = await (supabase as any)
         .from("work_periods")
@@ -244,11 +290,19 @@ export const useProjects = (userId: string | undefined) => {
         description: "Work period has been updated.",
       });
     } catch (error: any) {
-      toast({
-        title: "Error updating period",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error instanceof ZodError) {
+        toast({
+          title: "Validation error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error updating period",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   };
 
