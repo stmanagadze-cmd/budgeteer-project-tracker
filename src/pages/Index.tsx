@@ -50,10 +50,16 @@ const Index = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (projects.length > 0 && !activeProjectId) {
-      setActiveProjectId(projects[0].id);
-    }
-  }, [projects, activeProjectId]);
+    const initializeProject = async () => {
+      if (!loading && projects.length === 0) {
+        // Create a default project if none exist
+        await handleAddProject();
+      } else if (projects.length > 0 && !activeProjectId) {
+        setActiveProjectId(projects[0].id);
+      }
+    };
+    initializeProject();
+  }, [projects, activeProjectId, loading]);
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
@@ -130,8 +136,12 @@ const Index = () => {
     navigate("/auth");
   };
 
-  if (loading || !activeProject) {
+  if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!activeProject) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">Initializing...</div>;
   }
 
   return (
