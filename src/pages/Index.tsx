@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import ProjectTabs from "@/components/ProjectTabs";
 import ProjectSettings from "@/components/ProjectSettings";
@@ -8,18 +8,15 @@ import KPICards from "@/components/KPICards";
 import BudgetCharts from "@/components/BudgetCharts";
 import WorkPeriods from "@/components/WorkPeriods";
 import SettingsSidebar from "@/components/SettingsSidebar";
-import { WorkPeriod } from "@/types/project";
+import { Project, WorkPeriod } from "@/types/project";
 import { useProjects } from "@/hooks/useProjects";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Settings, LogOut } from "lucide-react";
 
 const Index = () => {
-  const { toast } = useToast();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
-  const [loading, setLoading] = useState(true);
-  const { projects, loading: projectsLoading, addProject, updateProject, deleteProject, addWorkPeriod, deleteWorkPeriod } = useProjects(userId);
+  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, deleteWorkPeriod } = useProjects(userId);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [visibleCards, setVisibleCards] = useState({
@@ -31,26 +28,10 @@ const Index = () => {
   });
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-      } else {
-        navigate("/auth");
-      }
-      setLoading(false);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id);
     });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-      } else {
-        navigate("/auth");
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     if (projects.length > 0 && !activeProjectId) {
@@ -60,9 +41,13 @@ const Index = () => {
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
   const handleAddProject = async () => {
-    const name = `New Project ${projects.length + 1}`;
-    const newProjectId = await addProject(name, 50, 10000);
+    const newProjectId = await addProject(`New Project ${projects.length + 1}`);
     if (newProjectId) {
       setActiveProjectId(newProjectId);
     }
@@ -75,20 +60,11 @@ const Index = () => {
     const newName = prompt("Enter new project name:", project.name);
     if (newName && newName.trim()) {
       await updateProject(id, { name: newName.trim() });
-      toast({
-        title: "Project renamed",
-        description: `Project renamed to "${newName.trim()}".`,
-      });
     }
   };
 
   const handleDeleteProject = async (id: string) => {
     if (projects.length === 1) {
-      toast({
-        title: "Cannot delete",
-        description: "You must have at least one project.",
-        variant: "destructive",
-      });
       return;
     }
 
@@ -96,19 +72,23 @@ const Index = () => {
     if (!project) return;
 
     if (confirm(`Are you sure you want to delete "${project.name}"?`)) {
-      const success = await deleteProject(id);
-      if (success && activeProjectId === id) {
-        setActiveProjectId(projects[0].id);
+      if (activeProjectId === id) {
+        const otherProject = projects.find((p) => p.id !== id);
+        if (otherProject) {
+          setActiveProjectId(otherProject.id);
+        }
       }
+      await deleteProject(id);
     }
   };
 
-  const handleUpdateProject = async (updates: { name?: string; hourlySalary?: number; targetBudget?: number }) => {
-    await updateProject(activeProjectId, {
-      name: updates.name,
-      hourly_salary: updates.hourlySalary,
-      target_budget: updates.targetBudget,
-    });
+  const handleUpdateProject = async (updates: Partial<Project>) => {
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.hourlySalary !== undefined) dbUpdates.hourly_salary = updates.hourlySalary;
+    if (updates.targetBudget !== undefined) dbUpdates.target_budget = updates.targetBudget;
+    
+    await updateProject(activeProjectId, dbUpdates);
   };
 
   const handleAddPeriod = async (period: Omit<WorkPeriod, "id">) => {
@@ -126,17 +106,14 @@ const Index = () => {
     }));
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
-  };
-
-  if (loading || projectsLoading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
-  }
-
-  if (!activeProject) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">No projects found</div>;
+  if (loading || !activeProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg">Loading your projects...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -164,11 +141,11 @@ const Index = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleLogout}
+            onClick={handleSignOut}
             className="gap-2"
           >
             <LogOut className="h-4 w-4" />
-            Logout
+            Sign Out
           </Button>
         </div>
         <ProjectSettings project={activeProject} onUpdateProject={handleUpdateProject} />
