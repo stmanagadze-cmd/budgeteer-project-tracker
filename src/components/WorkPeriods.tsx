@@ -337,6 +337,7 @@ const WorkPeriods = ({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[50px]">#</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Team Size</TableHead>
                 <TableHead>Days</TableHead>
@@ -352,13 +353,14 @@ const WorkPeriods = ({
             <TableBody>
               {project.workPeriods.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground">
                     No work periods added yet
                   </TableCell>
                 </TableRow>
               ) : (
-                project.workPeriods.map((period) => (
+                project.workPeriods.map((period, index) => (
                   <TableRow key={period.id}>
+                    <TableCell className="text-center font-medium">{index + 1}</TableCell>
                     <TableCell>{new Date(period.date).toLocaleDateString()}</TableCell>
                     <TableCell>{period.teamSize}</TableCell>
                     <TableCell>{period.daysWorked}</TableCell>
