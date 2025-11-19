@@ -39,7 +39,15 @@ interface Project {
   workPeriods: WorkPeriod[];
 }
 
-function generateHTMLReport(project: Project): string {
+interface VisibleCards {
+  totalHours: boolean;
+  totalAccumulated: boolean;
+  targetBudget: boolean;
+  remaining: boolean;
+  progress: boolean;
+}
+
+function generateHTMLReport(project: Project, visibleCards: VisibleCards): string {
   const totalHours = project.workPeriods.reduce((sum, p) => sum + p.totalHours, 0);
   const totalCost = project.workPeriods.reduce((sum, p) => sum + p.periodCost, 0);
   const remaining = project.targetBudget - totalCost;
@@ -61,9 +69,15 @@ function generateHTMLReport(project: Project): string {
         <p><strong>Cost:</strong> $${period.periodCost.toFixed(2)}</p>
       </div>
       ${period.images && period.images.length > 0 ? `
-        <div class="images">
-          <p><strong>Images:</strong> ${period.images.length} attached</p>
-          ${period.images.slice(0, 1).map(img => `<img src="${escapeHtml(img)}" alt="Period image" />`).join('')}
+        <div class="images-section">
+          <h4>Images</h4>
+          <div class="images-grid">
+            ${period.images.map(img => `
+              <div class="image-container">
+                <img src="${escapeHtml(img)}" alt="Work period image" onclick="openImageModal(this.src)" />
+              </div>
+            `).join('')}
+          </div>
         </div>
       ` : ''}
     </div>
@@ -156,16 +170,68 @@ function generateHTMLReport(project: Project): string {
           font-size: 14px;
           color: #555;
         }
-        .images {
-          margin-top: 15px;
-          padding-top: 15px;
+        .images-section {
+          margin-top: 20px;
+          padding-top: 20px;
           border-top: 1px solid #eee;
         }
-        .images img {
-          max-width: 200px;
-          height: auto;
-          border-radius: 4px;
-          margin-top: 10px;
+        .images-section h4 {
+          color: #ff6b35;
+          margin-bottom: 15px;
+          font-size: 16px;
+        }
+        .images-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+          gap: 15px;
+        }
+        .image-container {
+          position: relative;
+          overflow: hidden;
+          border-radius: 8px;
+          border: 1px solid #ddd;
+          background: #f9f9f9;
+          cursor: pointer;
+          transition: transform 0.2s;
+        }
+        .image-container:hover {
+          transform: scale(1.02);
+          box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .image-container img {
+          width: 100%;
+          height: 200px;
+          object-fit: cover;
+          display: block;
+        }
+        .modal {
+          display: none;
+          position: fixed;
+          z-index: 1000;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0,0,0,0.9);
+          cursor: pointer;
+        }
+        .modal-content {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          max-width: 90%;
+          max-height: 90%;
+          object-fit: contain;
+        }
+        .close-modal {
+          position: absolute;
+          top: 20px;
+          right: 35px;
+          color: #f1f1f1;
+          font-size: 40px;
+          font-weight: bold;
+          cursor: pointer;
         }
         .footer {
           margin-top: 40px;
@@ -195,13 +261,16 @@ function generateHTMLReport(project: Project): string {
         <p><strong>Target Budget:</strong> $${project.targetBudget.toFixed(2)}</p>
       </div>
 
+      ${(visibleCards.totalHours || visibleCards.totalAccumulated || visibleCards.targetBudget || visibleCards.remaining || visibleCards.progress) ? `
       <div class="summary">
         <h2>Summary</h2>
-        <p><strong>Total Hours:</strong> ${totalHours.toFixed(2)}</p>
-        <p><strong>Total Cost:</strong> $${totalCost.toFixed(2)}</p>
-        <p class="remaining"><strong>Remaining Budget:</strong> $${remaining.toFixed(2)}</p>
-        <p><strong>Progress:</strong> ${progress.toFixed(1)}%</p>
+        ${visibleCards.totalHours ? `<p><strong>Total Hours:</strong> ${totalHours.toFixed(2)}</p>` : ''}
+        ${visibleCards.totalAccumulated ? `<p><strong>Total Cost:</strong> $${totalCost.toFixed(2)}</p>` : ''}
+        ${visibleCards.targetBudget ? `<p><strong>Target Budget:</strong> $${project.targetBudget.toFixed(2)}</p>` : ''}
+        ${visibleCards.remaining ? `<p class="remaining"><strong>Remaining Budget:</strong> $${remaining.toFixed(2)}</p>` : ''}
+        ${visibleCards.progress ? `<p><strong>Progress:</strong> ${progress.toFixed(1)}%</p>` : ''}
       </div>
+      ` : ''}
 
       <div class="periods">
         <h2>Work Periods</h2>
@@ -211,6 +280,30 @@ function generateHTMLReport(project: Project): string {
       <div class="footer">
         Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
       </div>
+
+      <div id="imageModal" class="modal" onclick="closeImageModal()">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="modalImage">
+      </div>
+
+      <script>
+        function openImageModal(src) {
+          const modal = document.getElementById('imageModal');
+          const modalImg = document.getElementById('modalImage');
+          modal.style.display = 'block';
+          modalImg.src = src;
+        }
+        
+        function closeImageModal() {
+          document.getElementById('imageModal').style.display = 'none';
+        }
+        
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            closeImageModal();
+          }
+        });
+      </script>
     </body>
     </html>
   `;
@@ -256,7 +349,7 @@ serve(async (req) => {
     }
 
     // Parse and validate request body
-    const { project } = await req.json() as { project: Project };
+    const { project, visibleCards } = await req.json() as { project: Project; visibleCards?: VisibleCards };
 
     if (!project || !project.id) {
       return new Response(
@@ -264,6 +357,14 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const cardsToShow = visibleCards || {
+      totalHours: true,
+      totalAccumulated: true,
+      targetBudget: true,
+      remaining: true,
+      progress: true,
+    };
 
     // Verify user owns the project
     const { data: projectData, error: projectError } = await supabaseClient
@@ -321,16 +422,17 @@ serve(async (req) => {
 
     console.log('Generating HTML report for project ID:', project.id.substring(0, 8), 'for user:', user.id.substring(0, 8));
 
-    const htmlContent = generateHTMLReport(project);
+    const htmlContent = generateHTMLReport(project, cardsToShow);
     
     // Sanitize filename
+    const today = new Date().toISOString().split('T')[0];
     const safeFilename = project.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').substring(0, 100);
 
     return new Response(htmlContent, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/html',
-        'Content-Disposition': `attachment; filename="${safeFilename}_report.html"`,
+        'Content-Disposition': `attachment; filename="${safeFilename}_export_${today}.html"`,
       },
     });
   } catch (error) {
