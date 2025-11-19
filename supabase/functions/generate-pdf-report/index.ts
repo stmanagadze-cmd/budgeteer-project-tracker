@@ -56,9 +56,14 @@ function generateHTMLReport(project: Project, visibleCards: VisibleCards): strin
   // Sanitize all user-provided strings to prevent XSS
   const safeName = escapeHtml(project.name);
   
-  const periodsHTML = project.workPeriods.map((period, index) => `
+  const periodsHTML = project.workPeriods.map((period, index) => {
+    // Format date without timezone conversion (YYYY-MM-DD -> MM/DD/YYYY or localized format)
+    const [year, month, day] = period.date.split('-');
+    const displayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString();
+    
+    return `
     <div class="period">
-      <h3>Period ${index + 1} - ${new Date(period.date).toLocaleDateString()}</h3>
+      <h3>Period ${index + 1} - ${displayDate}</h3>
       <div class="period-details">
         <p><strong>Work Type:</strong> ${escapeHtml(period.workType)}</p>
         <p><strong>Location:</strong> ${escapeHtml(period.location)}</p>
@@ -81,7 +86,8 @@ function generateHTMLReport(project: Project, visibleCards: VisibleCards): strin
         </div>
       ` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <!DOCTYPE html>
