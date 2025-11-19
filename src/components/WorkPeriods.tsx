@@ -45,12 +45,21 @@ const WorkPeriods = ({
   });
   const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
 
+  const parseDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split("-");
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  };
+
+  const formatDate = (dateStr: string) => {
+    return parseDate(dateStr).toLocaleDateString();
+  };
+
   const sortedWorkPeriods = useMemo(() => {
     const periods = [...project.workPeriods];
     
     switch (sortBy) {
       case "date":
-        return periods.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return periods.sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
       case "totalHours":
         return periods.sort((a, b) => b.totalHours - a.totalHours);
       case "periodCost":
@@ -396,7 +405,7 @@ const WorkPeriods = ({
                 sortedWorkPeriods.map((period, index) => (
                   <TableRow key={period.id}>
                     <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                    <TableCell>{new Date(period.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDate(period.date)}</TableCell>
                     <TableCell>{period.teamSize}</TableCell>
                     <TableCell>{period.daysWorked}</TableCell>
                     <TableCell>{period.hoursPerDay}</TableCell>
