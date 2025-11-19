@@ -150,17 +150,23 @@ const Index = () => {
       });
 
       const { data, error } = await supabase.functions.invoke('generate-pdf-report', {
-        body: { project: activeProject },
+        body: { 
+          project: activeProject,
+          visibleCards: visibleCards,
+        },
       });
 
       if (error) throw error;
+
+      const today = new Date().toISOString().split('T')[0];
+      const fileName = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_export_${today}.html`;
 
       // Create a blob from the HTML response
       const blob = new Blob([data], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.html`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
