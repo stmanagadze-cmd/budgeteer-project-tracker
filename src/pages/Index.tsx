@@ -21,6 +21,7 @@ const Index = () => {
   const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage } = useProjects(userId);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"date" | "totalHours" | "periodCost">("date");
   const [visibleCards, setVisibleCards] = useState({
     totalHours: true,
     totalAccumulated: true,
@@ -153,6 +154,7 @@ const Index = () => {
         body: { 
           project: activeProject,
           visibleCards: visibleCards,
+          sortBy: sortBy,
         },
       });
 
@@ -254,6 +256,8 @@ const Index = () => {
           onDeletePeriod={handleDeletePeriod}
           onUploadImage={uploadWorkPeriodImage}
           onDeleteImage={deleteWorkPeriodImage}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
         />
       </main>
       <SettingsSidebar
