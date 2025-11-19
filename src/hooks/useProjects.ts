@@ -185,6 +185,34 @@ export const useProjects = (userId: string | undefined) => {
         .eq("id", id);
 
       if (error) throw error;
+
+      // If hourly salary was updated, recalculate all work period costs
+      if (validatedUpdates.hourlySalary !== undefined) {
+        const { data: workPeriods, error: fetchError } = await (supabase as any)
+          .from("work_periods")
+          .select("id, days_worked, hours_per_day, team_size")
+          .eq("project_id", id);
+
+        if (fetchError) throw fetchError;
+
+        if (workPeriods && workPeriods.length > 0) {
+          // Update each work period with recalculated cost
+          const updates = workPeriods.map((period: any) => {
+            const newCost = Number(period.days_worked) * Number(period.hours_per_day) * period.team_size * validatedUpdates.hourlySalary;
+            return supabase
+              .from("work_periods")
+              .update({ period_cost: newCost })
+              .eq("id", period.id);
+          });
+
+          await Promise.all(updates);
+
+          toast({
+            title: "Project updated",
+            description: "Hourly rate and all work period costs have been recalculated.",
+          });
+        }
+      }
     } catch (error: any) {
       if (error instanceof ZodError) {
         toast({
