@@ -17,6 +17,8 @@ interface WorkPeriodsProps {
   onDeletePeriod: (periodId: string) => void;
   onUploadImage: (periodId: string, file: File) => Promise<string | null>;
   onDeleteImage: (periodId: string, imageUrl: string) => Promise<void>;
+  sortBy: "date" | "totalHours" | "periodCost";
+  onSortChange: (sortBy: "date" | "totalHours" | "periodCost") => void;
 }
 
 const WorkPeriods = ({ 
@@ -25,13 +27,14 @@ const WorkPeriods = ({
   onUpdatePeriod,
   onDeletePeriod,
   onUploadImage,
-  onDeleteImage 
+  onDeleteImage,
+  sortBy,
+  onSortChange
 }: WorkPeriodsProps) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingPeriod, setEditingPeriod] = useState<WorkPeriod | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<"date" | "totalHours" | "periodCost">("date");
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     teamSize: 1,
@@ -250,7 +253,7 @@ const WorkPeriods = ({
           <CardTitle>Work Periods</CardTitle>
           <div className="flex items-center gap-2">
             <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-            <Select value={sortBy} onValueChange={(value: "date" | "totalHours" | "periodCost") => setSortBy(value)}>
+            <Select value={sortBy} onValueChange={(value: "date" | "totalHours" | "periodCost") => onSortChange(value)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>

@@ -349,7 +349,11 @@ serve(async (req) => {
     }
 
     // Parse and validate request body
-    const { project, visibleCards } = await req.json() as { project: Project; visibleCards?: VisibleCards };
+    const { project, visibleCards, sortBy = 'date' } = await req.json() as { 
+      project: Project; 
+      visibleCards?: VisibleCards;
+      sortBy?: 'date' | 'totalHours' | 'periodCost';
+    };
 
     if (!project || !project.id) {
       return new Response(
@@ -422,7 +426,24 @@ serve(async (req) => {
 
     console.log('Generating HTML report for project ID:', project.id.substring(0, 8), 'for user:', user.id.substring(0, 8));
 
-    const htmlContent = generateHTMLReport(project, cardsToShow);
+    // Sort work periods based on sortBy parameter
+    const sortedProject = {
+      ...project,
+      workPeriods: [...project.workPeriods].sort((a, b) => {
+        switch (sortBy) {
+          case 'date':
+            return new Date(a.date).getTime() - new Date(b.date).getTime();
+          case 'totalHours':
+            return b.totalHours - a.totalHours;
+          case 'periodCost':
+            return b.periodCost - a.periodCost;
+          default:
+            return 0;
+        }
+      })
+    };
+
+    const htmlContent = generateHTMLReport(sortedProject, cardsToShow);
     
     // Sanitize filename
     const today = new Date().toISOString().split('T')[0];
