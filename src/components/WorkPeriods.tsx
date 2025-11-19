@@ -1,13 +1,14 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Trash2, Edit, Upload, X } from "lucide-react";
+import { Trash2, Edit, Upload, X, ArrowUpDown } from "lucide-react";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface WorkPeriodsProps {
   project: Project;
@@ -30,6 +31,7 @@ const WorkPeriods = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingPeriod, setEditingPeriod] = useState<WorkPeriod | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"date" | "totalHours" | "periodCost">("date");
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     teamSize: 1,
@@ -39,6 +41,21 @@ const WorkPeriods = ({
     location: "Office",
   });
   const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
+
+  const sortedWorkPeriods = useMemo(() => {
+    const periods = [...project.workPeriods];
+    
+    switch (sortBy) {
+      case "date":
+        return periods.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      case "totalHours":
+        return periods.sort((a, b) => b.totalHours - a.totalHours);
+      case "periodCost":
+        return periods.sort((a, b) => b.periodCost - a.periodCost);
+      default:
+        return periods;
+    }
+  }, [project.workPeriods, sortBy]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,7 +246,22 @@ const WorkPeriods = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Work Periods</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Work Periods</CardTitle>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+            <Select value={sortBy} onValueChange={(value: "date" | "totalHours" | "periodCost") => setSortBy(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Date</SelectItem>
+                <SelectItem value="totalHours">Total Hours</SelectItem>
+                <SelectItem value="periodCost">Period Cost</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {/* Inline Add Work Period Form */}
@@ -351,14 +383,14 @@ const WorkPeriods = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {project.workPeriods.length === 0 ? (
+              {sortedWorkPeriods.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={11} className="text-center text-muted-foreground">
                     No work periods added yet
                   </TableCell>
                 </TableRow>
               ) : (
-                project.workPeriods.map((period, index) => (
+                sortedWorkPeriods.map((period, index) => (
                   <TableRow key={period.id}>
                     <TableCell className="text-center font-medium">{index + 1}</TableCell>
                     <TableCell>{new Date(period.date).toLocaleDateString()}</TableCell>
