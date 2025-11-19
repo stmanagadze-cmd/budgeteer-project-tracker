@@ -11,7 +11,7 @@ import SettingsSidebar from "@/components/SettingsSidebar";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Settings, LogOut, FileDown } from "lucide-react";
+import { Settings, LogOut, FileDown, FileText } from "lucide-react";
 import { useProjects } from "@/hooks/useProjects";
 
 const Index = () => {
@@ -207,6 +207,15 @@ const Index = () => {
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
         <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/invoices")}
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Invoices
+          </Button>
           <Button
             variant="outline"
             size="sm"
