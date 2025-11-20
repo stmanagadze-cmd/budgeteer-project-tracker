@@ -37,7 +37,9 @@ const WorkPeriods = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingPeriod, setEditingPeriod] = useState<WorkPeriod | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  
+  // Separate state for add form
+  const [addFormData, setAddFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     teamSize: 1,
     daysWorked: 1,
@@ -45,6 +47,17 @@ const WorkPeriods = ({
     workType: "Development",
     location: "Office",
   });
+  
+  // Separate state for edit form (completely isolated)
+  const [editFormData, setEditFormData] = useState({
+    date: "",
+    teamSize: 1,
+    daysWorked: 1,
+    hoursPerDay: 8,
+    workType: "",
+    location: "",
+  });
+  
   const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
 
   const parseDate = (dateStr: string) => {
@@ -71,38 +84,25 @@ const WorkPeriods = ({
     }
   }, [project.workPeriods, sortBy]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const totalHours = formData.teamSize * formData.daysWorked * formData.hoursPerDay;
+    const totalHours = addFormData.teamSize * addFormData.daysWorked * addFormData.hoursPerDay;
     const periodCost = totalHours * project.hourlySalary;
 
-    if (editingPeriod) {
-      onUpdatePeriod(editingPeriod.id, {
-        ...formData,
-        totalHours,
-        periodCost,
-      });
-      toast({
-        title: "Work period updated",
-        description: `Updated work period with ${totalHours} hours.`,
-      });
-      setEditingPeriod(null);
-      setDialogOpen(false);
-    } else {
-      onAddPeriod({
-        ...formData,
-        totalHours,
-        periodCost,
-        images: [],
-      });
-      toast({
-        title: "Work period added",
-        description: `Added ${totalHours} hours to the project.`,
-      });
-    }
+    onAddPeriod({
+      ...addFormData,
+      totalHours,
+      periodCost,
+      images: [],
+    });
+    
+    toast({
+      title: "Work period added",
+      description: `Added ${totalHours} hours to the project.`,
+    });
 
-    // Reset form
-    setFormData({
+    // Reset add form
+    setAddFormData({
       date: new Date().toISOString().split("T")[0],
       teamSize: 1,
       daysWorked: 1,
@@ -112,9 +112,31 @@ const WorkPeriods = ({
     });
   };
 
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPeriod) return;
+
+    const totalHours = editFormData.teamSize * editFormData.daysWorked * editFormData.hoursPerDay;
+    const periodCost = totalHours * project.hourlySalary;
+
+    onUpdatePeriod(editingPeriod.id, {
+      ...editFormData,
+      totalHours,
+      periodCost,
+    });
+    
+    toast({
+      title: "Work period updated",
+      description: `Updated work period with ${totalHours} hours.`,
+    });
+    
+    setEditingPeriod(null);
+    setDialogOpen(false);
+  };
+
   const handleEdit = (period: WorkPeriod) => {
     setEditingPeriod(period);
-    setFormData({
+    setEditFormData({
       date: period.date,
       teamSize: period.teamSize,
       daysWorked: period.daysWorked,
@@ -185,15 +207,15 @@ const WorkPeriods = ({
   };
 
   const EditFormContent = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleEditSubmit} className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="edit-date">Date</Label>
           <Input
             id="edit-date"
             type="date"
-            value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            value={editFormData.date}
+            onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
             required
           />
         </div>
@@ -202,8 +224,8 @@ const WorkPeriods = ({
           <Input
             id="edit-teamSize"
             type="number"
-            value={formData.teamSize}
-            onChange={(e) => setFormData({ ...formData, teamSize: parseInt(e.target.value) || 1 })}
+            value={editFormData.teamSize}
+            onChange={(e) => setEditFormData({ ...editFormData, teamSize: parseInt(e.target.value) || 1 })}
             min="1"
             required
           />
@@ -213,8 +235,8 @@ const WorkPeriods = ({
           <Input
             id="edit-daysWorked"
             type="number"
-            value={formData.daysWorked}
-            onChange={(e) => setFormData({ ...formData, daysWorked: parseInt(e.target.value) || 1 })}
+            value={editFormData.daysWorked}
+            onChange={(e) => setEditFormData({ ...editFormData, daysWorked: parseFloat(e.target.value) || 1 })}
             min="0.5"
             step="0.5"
             required
@@ -225,8 +247,8 @@ const WorkPeriods = ({
           <Input
             id="edit-hoursPerDay"
             type="number"
-            value={formData.hoursPerDay}
-            onChange={(e) => setFormData({ ...formData, hoursPerDay: parseInt(e.target.value) || 1 })}
+            value={editFormData.hoursPerDay}
+            onChange={(e) => setEditFormData({ ...editFormData, hoursPerDay: parseInt(e.target.value) || 1 })}
             min="1"
             max="24"
             required
@@ -236,8 +258,8 @@ const WorkPeriods = ({
           <Label htmlFor="edit-workType">Work Type</Label>
           <Input
             id="edit-workType"
-            value={formData.workType}
-            onChange={(e) => setFormData({ ...formData, workType: e.target.value })}
+            value={editFormData.workType}
+            onChange={(e) => setEditFormData({ ...editFormData, workType: e.target.value })}
             required
           />
         </div>
@@ -245,8 +267,8 @@ const WorkPeriods = ({
           <Label htmlFor="edit-location">Location</Label>
           <Input
             id="edit-location"
-            value={formData.location}
-            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            value={editFormData.location}
+            onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
             required
           />
         </div>
@@ -279,15 +301,15 @@ const WorkPeriods = ({
       </CardHeader>
       <CardContent>
         {/* Inline Add Work Period Form */}
-        <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-muted/50">
+        <form onSubmit={handleAddSubmit} className="mb-6 p-4 border rounded-lg bg-muted/50">
           <div className="grid gap-3 md:grid-cols-7 items-end">
             <div className="space-y-1.5">
               <Label htmlFor="date" className="text-xs">Date</Label>
               <Input
                 id="date"
                 type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                value={addFormData.date}
+                onChange={(e) => setAddFormData({ ...addFormData, date: e.target.value })}
                 required
                 className="h-9"
               />
@@ -297,8 +319,8 @@ const WorkPeriods = ({
               <Input
                 id="teamSize"
                 type="number"
-                value={formData.teamSize}
-                onChange={(e) => setFormData({ ...formData, teamSize: parseInt(e.target.value) || 1 })}
+                value={addFormData.teamSize}
+                onChange={(e) => setAddFormData({ ...addFormData, teamSize: parseInt(e.target.value) || 1 })}
                 min="1"
                 required
                 className="h-9"
@@ -309,8 +331,8 @@ const WorkPeriods = ({
               <Input
                 id="daysWorked"
                 type="number"
-                value={formData.daysWorked}
-                onChange={(e) => setFormData({ ...formData, daysWorked: parseFloat(e.target.value) || 1 })}
+                value={addFormData.daysWorked}
+                onChange={(e) => setAddFormData({ ...addFormData, daysWorked: parseFloat(e.target.value) || 1 })}
                 min="0.5"
                 step="0.5"
                 required
@@ -322,8 +344,8 @@ const WorkPeriods = ({
               <Input
                 id="hoursPerDay"
                 type="number"
-                value={formData.hoursPerDay}
-                onChange={(e) => setFormData({ ...formData, hoursPerDay: parseInt(e.target.value) || 1 })}
+                value={addFormData.hoursPerDay}
+                onChange={(e) => setAddFormData({ ...addFormData, hoursPerDay: parseInt(e.target.value) || 1 })}
                 min="1"
                 max="24"
                 required
@@ -334,8 +356,8 @@ const WorkPeriods = ({
               <Label htmlFor="workType" className="text-xs">Work Type</Label>
               <Input
                 id="workType"
-                value={formData.workType}
-                onChange={(e) => setFormData({ ...formData, workType: e.target.value })}
+                value={addFormData.workType}
+                onChange={(e) => setAddFormData({ ...addFormData, workType: e.target.value })}
                 required
                 className="h-9"
               />
@@ -344,8 +366,8 @@ const WorkPeriods = ({
               <Label htmlFor="location" className="text-xs">Location</Label>
               <Input
                 id="location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                value={addFormData.location}
+                onChange={(e) => setAddFormData({ ...addFormData, location: e.target.value })}
                 required
                 className="h-9"
               />
@@ -361,14 +383,6 @@ const WorkPeriods = ({
           setDialogOpen(open);
           if (!open) {
             setEditingPeriod(null);
-            setFormData({
-              date: new Date().toISOString().split("T")[0],
-              teamSize: 1,
-              daysWorked: 1,
-              hoursPerDay: 8,
-              workType: "Development",
-              location: "Office",
-            });
           }
         }}>
           <DialogContent>
