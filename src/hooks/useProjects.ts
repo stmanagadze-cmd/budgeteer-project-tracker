@@ -10,6 +10,9 @@ export const useProjects = (userId: string | undefined) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  // Debounce timer ref
+  const debounceTimerRef = useState<NodeJS.Timeout | null>(null)[0];
+
   useEffect(() => {
     if (!userId) return;
 
@@ -22,42 +25,23 @@ export const useProjects = (userId: string | undefined) => {
 
         if (projectsError) throw projectsError;
 
+        // Only fetch work periods for user's projects
+        const projectIds = projectsData?.map((p: any) => p.id) || [];
+        
         const { data: periodsData, error: periodsError } = await (supabase as any)
           .from("work_periods")
-          .select("*");
+          .select("*")
+          .in("project_id", projectIds);
 
         if (periodsError) throw periodsError;
 
-        // Generate signed URLs for images in private bucket
-        const periodsWithSignedUrls = await Promise.all(
-          (periodsData || []).map(async (wp: any) => {
-            const signedImages = await Promise.all(
-              (wp.images || []).map(async (imageUrl: string) => {
-                // Extract the file path from the stored path or URL
-                const urlParts = imageUrl.split('/');
-                const bucketIndex = urlParts.findIndex(part => part === 'work-period-images');
-                if (bucketIndex === -1) return imageUrl;
-                
-                const filePath = urlParts.slice(bucketIndex + 1).join('/');
-                
-                const { data, error } = await supabase.storage
-                  .from('work-period-images')
-                  .createSignedUrl(filePath, 3600); // 1 hour expiry
-                
-                return error ? imageUrl : data.signedUrl;
-              })
-            );
-            
-            return { ...wp, signedImages };
-          })
-        );
-
+        // Store image paths without generating signed URLs immediately
         const projectsWithPeriods: Project[] = (projectsData || []).map((p: any) => ({
           id: p.id,
           name: p.name,
           hourlySalary: Number(p.hourly_salary),
           targetBudget: Number(p.target_budget),
-          workPeriods: periodsWithSignedUrls
+          workPeriods: (periodsData || [])
             .filter((wp: any) => wp.project_id === p.id)
             .map((wp: any) => ({
               id: wp.id,
@@ -69,7 +53,7 @@ export const useProjects = (userId: string | undefined) => {
               location: wp.location,
               totalHours: Number(wp.total_hours),
               periodCost: Number(wp.period_cost),
-              images: wp.signedImages || [],
+              images: wp.images || [],
             })),
         }));
 
@@ -87,6 +71,15 @@ export const useProjects = (userId: string | undefined) => {
 
     fetchProjects();
 
+    // Debounced refetch to prevent excessive updates
+    const debouncedFetch = () => {
+      if (debounceTimerRef) clearTimeout(debounceTimerRef);
+      const timer = setTimeout(() => {
+        fetchProjects();
+      }, 500);
+      Object.assign(debounceTimerRef, { current: timer });
+    };
+
     const projectsChannel = supabase
       .channel("projects-changes")
       .on(
@@ -96,9 +89,7 @@ export const useProjects = (userId: string | undefined) => {
           schema: "public",
           table: "projects",
         } as any,
-        () => {
-          fetchProjects();
-        }
+        debouncedFetch
       )
       .on(
         "postgres_changes",
@@ -107,13 +98,12 @@ export const useProjects = (userId: string | undefined) => {
           schema: "public",
           table: "work_periods",
         } as any,
-        () => {
-          fetchProjects();
-        }
+        debouncedFetch
       )
       .subscribe();
 
     return () => {
+      if (debounceTimerRef) clearTimeout(debounceTimerRef);
       supabase.removeChannel(projectsChannel);
     };
   }, [userId, toast]);
@@ -372,25 +362,61 @@ export const useProjects = (userId: string | undefined) => {
     }
   };
 
-  const uploadWorkPeriodImage = async (periodId: string, file: File) => {
+  const uploadWorkPeriodImage = async (workPeriodId: string, file: File): Promise<string | null> => {
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${periodId}/${fileName}`;
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const validExtensions = ['png', 'jpg', 'jpeg'];
+      
+      if (!fileExt || !validExtensions.includes(fileExt)) {
+        throw new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed.');
+      }
 
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${workPeriodId}/${fileName}`;
+
+      // Upload to private bucket
       const { error: uploadError } = await supabase.storage
-        .from("work-period-images")
-        .upload(filePath, file);
+        .from('work-period-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) throw uploadError;
 
-      // Store the file path instead of public URL since bucket is now private
-      // The file path will be converted to signed URL when fetching
-      const { data: { publicUrl } } = supabase.storage
-        .from("work-period-images")
-        .getPublicUrl(filePath);
+      // Store the path in the database
+      const { data: workPeriodData, error: fetchError } = await supabase
+        .from('work_periods')
+        .select('images')
+        .eq('id', workPeriodId)
+        .single();
 
-      return publicUrl;
+      if (fetchError) throw fetchError;
+
+      const currentImages = workPeriodData?.images || [];
+      const fullPath = `work-period-images/${filePath}`;
+      const updatedImages = [...currentImages, fullPath];
+
+      const { error: updateError } = await supabase
+        .from('work_periods')
+        .update({ images: updatedImages })
+        .eq('id', workPeriodId);
+
+      if (updateError) throw updateError;
+
+      // Update local state immediately without full refetch
+      setProjects(prevProjects => 
+        prevProjects.map(project => ({
+          ...project,
+          workPeriods: project.workPeriods.map(period =>
+            period.id === workPeriodId
+              ? { ...period, images: updatedImages }
+              : period
+          )
+        }))
+      );
+
+      return fullPath;
     } catch (error: any) {
       toast({
         title: "Error uploading image",
