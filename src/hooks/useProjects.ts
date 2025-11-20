@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ export const useProjects = (userId: string | undefined) => {
   const { toast } = useToast();
 
   // Debounce timer ref
-  const debounceTimerRef = useState<NodeJS.Timeout | null>(null)[0];
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -73,11 +73,10 @@ export const useProjects = (userId: string | undefined) => {
 
     // Debounced refetch to prevent excessive updates
     const debouncedFetch = () => {
-      if (debounceTimerRef) clearTimeout(debounceTimerRef);
-      const timer = setTimeout(() => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
         fetchProjects();
       }, 500);
-      Object.assign(debounceTimerRef, { current: timer });
     };
 
     const projectsChannel = supabase
@@ -103,7 +102,7 @@ export const useProjects = (userId: string | undefined) => {
       .subscribe();
 
     return () => {
-      if (debounceTimerRef) clearTimeout(debounceTimerRef);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       supabase.removeChannel(projectsChannel);
     };
   }, [userId, toast]);
