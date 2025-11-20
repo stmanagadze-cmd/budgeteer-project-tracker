@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { Trash2, Edit, Upload, X, ArrowUpDown } from "lucide-react";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import WorkPeriodImage from "@/components/WorkPeriodImage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface WorkPeriodsProps {
   project: Project;
@@ -442,11 +444,10 @@ const WorkPeriods = ({
                           <div className="flex gap-1">
                             {period.images.map((imageUrl, idx) => (
                               <div key={idx} className="relative group">
-                                <img
-                                  src={imageUrl}
+                                <WorkPeriodImage
+                                  imagePath={imageUrl}
                                   alt={`Period ${idx + 1}`}
                                   className="h-10 w-10 object-cover rounded cursor-pointer"
-                                  onClick={() => window.open(imageUrl, '_blank')}
                                 />
                                 <Button
                                   variant="destructive"

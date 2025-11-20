@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, DollarSign, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { Project } from "@/types/project";
@@ -7,11 +8,14 @@ interface KPICardsProps {
   visibleCards: Record<string, boolean>;
 }
 
-const KPICards = ({ project, visibleCards }: KPICardsProps) => {
-  const totalHours = project.workPeriods.reduce((sum, period) => sum + period.totalHours, 0);
-  const totalAccumulated = totalHours * project.hourlySalary;
-  const remaining = project.targetBudget - totalAccumulated;
-  const progress = project.targetBudget > 0 ? (totalAccumulated / project.targetBudget) * 100 : 0;
+const KPICards = memo(({ project, visibleCards }: KPICardsProps) => {
+  const { totalHours, totalAccumulated, remaining, progress } = useMemo(() => {
+    const hours = project.workPeriods.reduce((sum, period) => sum + period.totalHours, 0);
+    const accumulated = hours * project.hourlySalary;
+    const rem = project.targetBudget - accumulated;
+    const prog = project.targetBudget > 0 ? (accumulated / project.targetBudget) * 100 : 0;
+    return { totalHours: hours, totalAccumulated: accumulated, remaining: rem, progress: prog };
+  }, [project.workPeriods, project.hourlySalary, project.targetBudget]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -75,6 +79,8 @@ const KPICards = ({ project, visibleCards }: KPICardsProps) => {
       ))}
     </div>
   );
-};
+});
+
+KPICards.displayName = 'KPICards';
 
 export default KPICards;
