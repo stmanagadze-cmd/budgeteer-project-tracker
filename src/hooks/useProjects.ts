@@ -370,7 +370,9 @@ export const useProjects = (userId: string | undefined) => {
         throw new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed.');
       }
 
-      const fileName = `${Date.now()}.${fileExt}`;
+      // Generate unique filename using timestamp + random string to prevent collisions when uploading multiple files
+      const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      const fileName = `${uniqueId}.${fileExt}`;
       const filePath = `${workPeriodId}/${fileName}`;
 
       // Upload to private bucket
