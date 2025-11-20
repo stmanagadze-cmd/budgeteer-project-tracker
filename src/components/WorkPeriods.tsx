@@ -403,7 +403,7 @@ const WorkPeriods = ({
                 <TableHead>Days</TableHead>
                 <TableHead>Hrs/Day</TableHead>
                 <TableHead>Total Hrs</TableHead>
-                <TableHead>Work Type</TableHead>
+                <TableHead className="whitespace-nowrap">Work Type</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Period Cost</TableHead>
                 <TableHead>Images</TableHead>
