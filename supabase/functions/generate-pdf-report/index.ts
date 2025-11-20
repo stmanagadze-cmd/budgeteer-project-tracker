@@ -432,10 +432,55 @@ serve(async (req) => {
 
     console.log('Generating HTML report for project ID:', project.id.substring(0, 8), 'for user:', user.id.substring(0, 8));
 
+    // Generate signed URLs for all work period images
+    const workPeriodsWithSignedUrls = await Promise.all(
+      project.workPeriods.map(async (period) => {
+        if (!period.images || period.images.length === 0) {
+          return period;
+        }
+
+        const signedImageUrls = await Promise.all(
+          period.images.map(async (imagePath) => {
+            try {
+              // Extract the file path from the stored path or URL
+              const urlParts = imagePath.split('/');
+              const bucketIndex = urlParts.findIndex(part => part === 'work-period-images');
+              
+              if (bucketIndex === -1) {
+                console.warn('Invalid image path format:', imagePath);
+                return imagePath;
+              }
+              
+              const filePath = urlParts.slice(bucketIndex + 1).join('/');
+              
+              const { data, error } = await supabaseClient.storage
+                .from('work-period-images')
+                .createSignedUrl(filePath, 3600); // 1 hour expiry
+              
+              if (error) {
+                console.error('Error generating signed URL for image:', error);
+                return imagePath;
+              }
+              
+              return data.signedUrl;
+            } catch (error) {
+              console.error('Error processing image:', error);
+              return imagePath;
+            }
+          })
+        );
+
+        return {
+          ...period,
+          images: signedImageUrls
+        };
+      })
+    );
+
     // Sort work periods based on sortBy parameter
     const sortedProject = {
       ...project,
-      workPeriods: [...project.workPeriods].sort((a, b) => {
+      workPeriods: workPeriodsWithSignedUrls.sort((a, b) => {
         switch (sortBy) {
           case 'date':
             return new Date(a.date).getTime() - new Date(b.date).getTime();
