@@ -21,11 +21,13 @@ export interface Invoice {
   id: string;
   user_id: string;
   project_id?: string;
+  company_id?: string;
+  client_id?: string;
   invoice_number: string;
   invoice_date: string;
-  status: 'draft' | 'sent' | 'paid';
+  status: 'unpaid' | 'paid_by_holdback' | 'holdback_remaining' | 'fully_paid' | 'draft';
   
-  // Company info
+  // Company info (legacy fields, kept for backward compatibility)
   company_name: string;
   company_address?: string;
   company_hst?: string;
@@ -33,7 +35,7 @@ export interface Invoice {
   company_email?: string;
   company_website?: string;
   
-  // Client info
+  // Client info (legacy fields)
   client_name: string;
   client_address?: string;
   client_contact?: string;
@@ -44,6 +46,9 @@ export interface Invoice {
   subtotal_hours: number;
   total_km: number;
   fuel_charge: number;
+  holdback_enabled: boolean;
+  holdback_percentage: number;
+  holdback_amount: number;
   net_amount: number;
   tax_rate: number;
   tax_due: number;
