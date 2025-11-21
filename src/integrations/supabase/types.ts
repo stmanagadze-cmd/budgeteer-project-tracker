@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          name: string
+          next_invoice_number: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          next_invoice_number?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          next_invoice_number?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      companies: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          phone: string | null
+          tax_id: string | null
+          updated_at: string
+          user_id: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          user_id: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          user_id?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       invoice_attachments: {
         Row: {
           created_at: string
@@ -98,17 +170,22 @@ export type Database = {
           client_address: string | null
           client_contact: string | null
           client_email: string | null
+          client_id: string | null
           client_name: string
           client_phone: string | null
           comments: string | null
           company_address: string | null
           company_email: string | null
           company_hst: string | null
+          company_id: string | null
           company_name: string
           company_phone: string | null
           company_website: string | null
           created_at: string
           fuel_charge: number | null
+          holdback_amount: number | null
+          holdback_enabled: boolean
+          holdback_percentage: number | null
           id: string
           invoice_date: string
           invoice_number: string
@@ -127,17 +204,22 @@ export type Database = {
           client_address?: string | null
           client_contact?: string | null
           client_email?: string | null
+          client_id?: string | null
           client_name: string
           client_phone?: string | null
           comments?: string | null
           company_address?: string | null
           company_email?: string | null
           company_hst?: string | null
+          company_id?: string | null
           company_name?: string
           company_phone?: string | null
           company_website?: string | null
           created_at?: string
           fuel_charge?: number | null
+          holdback_amount?: number | null
+          holdback_enabled?: boolean
+          holdback_percentage?: number | null
           id?: string
           invoice_date?: string
           invoice_number: string
@@ -156,17 +238,22 @@ export type Database = {
           client_address?: string | null
           client_contact?: string | null
           client_email?: string | null
+          client_id?: string | null
           client_name?: string
           client_phone?: string | null
           comments?: string | null
           company_address?: string | null
           company_email?: string | null
           company_hst?: string | null
+          company_id?: string | null
           company_name?: string
           company_phone?: string | null
           company_website?: string | null
           created_at?: string
           fuel_charge?: number | null
+          holdback_amount?: number | null
+          holdback_enabled?: boolean
+          holdback_percentage?: number | null
           id?: string
           invoice_date?: string
           invoice_number?: string
@@ -182,6 +269,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_project_id_fkey"
             columns: ["project_id"]
