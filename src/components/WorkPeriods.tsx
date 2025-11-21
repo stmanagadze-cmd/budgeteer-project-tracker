@@ -23,6 +23,129 @@ interface WorkPeriodsProps {
   onSortChange: (sortBy: "date" | "totalHours" | "periodCost") => void;
 }
 
+interface EditWorkPeriodFormProps {
+  period: WorkPeriod;
+  hourlySalary: number;
+  onUpdatePeriod: (periodId: string, period: Partial<WorkPeriod>) => void;
+  onClose: () => void;
+}
+
+const EditWorkPeriodForm = memo(function EditWorkPeriodForm({
+  period,
+  hourlySalary,
+  onUpdatePeriod,
+  onClose,
+}: EditWorkPeriodFormProps) {
+  const { toast } = useToast();
+  const [formData, setFormData] = useState({
+    date: period.date,
+    teamSize: period.teamSize,
+    daysWorked: period.daysWorked,
+    hoursPerDay: period.hoursPerDay,
+    workType: period.workType,
+    location: period.location,
+  });
+
+  const handleChange = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
+    setFormData((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const totalHours = formData.teamSize * formData.daysWorked * formData.hoursPerDay;
+    const periodCost = totalHours * hourlySalary;
+
+    onUpdatePeriod(period.id, {
+      ...formData,
+      totalHours,
+      periodCost,
+    });
+
+    toast({
+      title: "Work period updated",
+      description: `Updated work period with ${totalHours} hours.`,
+    });
+
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="edit-date">Date</Label>
+          <Input
+            id="edit-date"
+            type="date"
+            value={formData.date}
+            onChange={(e) => handleChange("date", e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-teamSize">Team Size</Label>
+          <Input
+            id="edit-teamSize"
+            type="number"
+            value={formData.teamSize}
+            onChange={(e) => handleChange("teamSize", parseInt(e.target.value) || 1)}
+            min="1"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-daysWorked">Days Worked</Label>
+          <Input
+            id="edit-daysWorked"
+            type="number"
+            value={formData.daysWorked}
+            onChange={(e) => handleChange("daysWorked", parseFloat(e.target.value) || 1)}
+            min="0.5"
+            step="0.5"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-hoursPerDay">Hours/Day</Label>
+          <Input
+            id="edit-hoursPerDay"
+            type="number"
+            value={formData.hoursPerDay}
+            onChange={(e) => handleChange("hoursPerDay", parseInt(e.target.value) || 1)}
+            min="1"
+            max="24"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-workType">Work Type</Label>
+          <Input
+            id="edit-workType"
+            value={formData.workType}
+            onChange={(e) => handleChange("workType", e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-location">Location</Label>
+          <Input
+            id="edit-location"
+            value={formData.location}
+            onChange={(e) => handleChange("location", e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <Button type="submit" className="w-full">
+        Update Period
+      </Button>
+    </form>
+  );
+});
+
 const WorkPeriods = ({ 
   project, 
   onAddPeriod, 
@@ -46,16 +169,6 @@ const WorkPeriods = ({
     hoursPerDay: 8,
     workType: "Development",
     location: "Office",
-  });
-  
-  // Separate state for edit form (completely isolated)
-  const [editFormData, setEditFormData] = useState({
-    date: "",
-    teamSize: 1,
-    daysWorked: 1,
-    hoursPerDay: 8,
-    workType: "",
-    location: "",
   });
   
   const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
@@ -112,38 +225,9 @@ const WorkPeriods = ({
     });
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPeriod) return;
-
-    const totalHours = editFormData.teamSize * editFormData.daysWorked * editFormData.hoursPerDay;
-    const periodCost = totalHours * project.hourlySalary;
-
-    onUpdatePeriod(editingPeriod.id, {
-      ...editFormData,
-      totalHours,
-      periodCost,
-    });
-    
-    toast({
-      title: "Work period updated",
-      description: `Updated work period with ${totalHours} hours.`,
-    });
-    
-    setEditingPeriod(null);
-    setDialogOpen(false);
-  };
 
   const handleEdit = (period: WorkPeriod) => {
     setEditingPeriod(period);
-    setEditFormData({
-      date: period.date,
-      teamSize: period.teamSize,
-      daysWorked: period.daysWorked,
-      hoursPerDay: period.hoursPerDay,
-      workType: period.workType,
-      location: period.location,
-    });
     setDialogOpen(true);
   };
 
@@ -205,79 +289,6 @@ const WorkPeriods = ({
       description: "Image has been removed successfully.",
     });
   };
-
-  const EditFormContent = () => (
-    <form onSubmit={handleEditSubmit} className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="edit-date">Date</Label>
-          <Input
-            id="edit-date"
-            type="date"
-            value={editFormData.date}
-            onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-teamSize">Team Size</Label>
-          <Input
-            id="edit-teamSize"
-            type="number"
-            value={editFormData.teamSize}
-            onChange={(e) => setEditFormData({ ...editFormData, teamSize: parseInt(e.target.value) || 1 })}
-            min="1"
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-daysWorked">Days Worked</Label>
-          <Input
-            id="edit-daysWorked"
-            type="number"
-            value={editFormData.daysWorked}
-            onChange={(e) => setEditFormData({ ...editFormData, daysWorked: parseFloat(e.target.value) || 1 })}
-            min="0.5"
-            step="0.5"
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-hoursPerDay">Hours/Day</Label>
-          <Input
-            id="edit-hoursPerDay"
-            type="number"
-            value={editFormData.hoursPerDay}
-            onChange={(e) => setEditFormData({ ...editFormData, hoursPerDay: parseInt(e.target.value) || 1 })}
-            min="1"
-            max="24"
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-workType">Work Type</Label>
-          <Input
-            id="edit-workType"
-            value={editFormData.workType}
-            onChange={(e) => setEditFormData({ ...editFormData, workType: e.target.value })}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-location">Location</Label>
-          <Input
-            id="edit-location"
-            value={editFormData.location}
-            onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-            required
-          />
-        </div>
-      </div>
-      <Button type="submit" className="w-full">
-        Update Period
-      </Button>
-    </form>
-  );
 
   return (
     <Card>
@@ -379,17 +390,31 @@ const WorkPeriods = ({
         </form>
 
         {/* Edit Dialog */}
-        <Dialog open={dialogOpen && editingPeriod !== null} onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setEditingPeriod(null);
-          }
-        }}>
+        <Dialog
+          open={dialogOpen && editingPeriod !== null}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) {
+              setEditingPeriod(null);
+            }
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Work Period</DialogTitle>
             </DialogHeader>
-            <EditFormContent />
+            {editingPeriod && (
+              <EditWorkPeriodForm
+                key={editingPeriod.id}
+                period={editingPeriod}
+                hourlySalary={project.hourlySalary}
+                onUpdatePeriod={onUpdatePeriod}
+                onClose={() => {
+                  setDialogOpen(false);
+                  setEditingPeriod(null);
+                }}
+              />
+            )}
           </DialogContent>
         </Dialog>
 
