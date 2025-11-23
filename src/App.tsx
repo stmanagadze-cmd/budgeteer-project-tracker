@@ -9,6 +9,7 @@ import NewInvoices from "./pages/NewInvoices";
 import NewInvoiceEditor from "./pages/NewInvoiceEditor";
 import Companies from "./pages/Companies";
 import Clients from "./pages/Clients";
+import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { InvoiceLayout } from "./components/InvoiceLayout";
 
@@ -22,7 +23,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<InvoiceLayout><Index /></InvoiceLayout>} />
+          <Route path="/" element={<InvoiceLayout><Dashboard /></InvoiceLayout>} />
+          <Route path="/budgeteer" element={<InvoiceLayout><Index /></InvoiceLayout>} />
           <Route path="/invoices" element={<InvoiceLayout><NewInvoices /></InvoiceLayout>} />
           <Route path="/invoices/new" element={<InvoiceLayout><NewInvoiceEditor /></InvoiceLayout>} />
           <Route path="/invoices/:id" element={<InvoiceLayout><NewInvoiceEditor /></InvoiceLayout>} />
