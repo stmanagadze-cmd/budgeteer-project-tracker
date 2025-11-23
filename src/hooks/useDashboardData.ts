@@ -48,7 +48,7 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
         if (companiesRes.error) throw companiesRes.error;
         if (clientsRes.error) throw clientsRes.error;
 
-        setInvoices(invoicesRes.data || []);
+        setInvoices((invoicesRes.data || []) as Invoice[]);
         setCompanies(companiesRes.data || []);
         setClients(clientsRes.data || []);
       } catch (error) {
