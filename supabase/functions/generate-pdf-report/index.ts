@@ -264,7 +264,6 @@ function generateHTMLReport(project: Project, visibleCards: VisibleCards): strin
         <h2>Project Details</h2>
         <p><strong>Project Name:</strong> ${safeName}</p>
         <p><strong>Hourly Rate:</strong> $${project.hourlySalary.toFixed(2)}</p>
-        <p><strong>Target Budget:</strong> $${project.targetBudget.toFixed(2)}</p>
       </div>
 
       ${(visibleCards.totalHours || visibleCards.totalAccumulated || visibleCards.targetBudget || visibleCards.remaining || visibleCards.progress) ? `
