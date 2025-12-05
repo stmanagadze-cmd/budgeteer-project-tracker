@@ -138,37 +138,52 @@ const InvoiceEditor = () => {
         description: "Opening print preview...",
       });
 
+      console.log('Calling generate-invoice-pdf with invoiceId:', invoice.id);
+      
       const { data, error } = await supabase.functions.invoke('generate-invoice-pdf', {
         body: { invoiceId: invoice.id },
       });
 
-      if (error) throw error;
+      console.log('Edge function response:', { data: data ? 'received' : 'null', error });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to call PDF generation service');
+      }
+
+      if (!data) {
+        throw new Error('No data received from PDF service');
+      }
 
       // Open HTML in new window for print-to-PDF
-      const printWindow = window.open('', '_blank');
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
       if (printWindow) {
         printWindow.document.write(data);
         printWindow.document.close();
         
-        // Wait for images to load then trigger print
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        };
-      } else {
-        throw new Error('Could not open print window. Please allow popups.');
-      }
+        // Trigger print after content loads
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 1000);
 
-      toast({
-        title: "Success",
-        description: "Use 'Save as PDF' in the print dialog to download",
-      });
+        toast({
+          title: "Success",
+          description: "Use 'Save as PDF' in the print dialog to download",
+        });
+      } else {
+        // Fallback: show instruction if popup blocked
+        toast({
+          title: "Popup Blocked",
+          description: "Please allow popups for this site and try again",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to generate PDF",
+        description: error.message || "Failed to generate PDF. Check console for details.",
         variant: "destructive",
       });
     }
