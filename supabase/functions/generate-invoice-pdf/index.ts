@@ -6,6 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface TemplateConfig {
+  primaryColor: string;
+  accentColor: string;
+  fontFamily: string;
+  fontSize: "small" | "medium" | "large";
+  layout: "classic" | "modern" | "compact";
+  showLogo: boolean;
+  showCompanyDetails: boolean;
+  showClientDetails: boolean;
+  headerStyle: "full" | "minimal";
+}
+
+const defaultConfig: TemplateConfig = {
+  primaryColor: "#2563eb",
+  accentColor: "#f97316",
+  fontFamily: "Inter",
+  fontSize: "medium",
+  layout: "classic",
+  showLogo: true,
+  showCompanyDetails: true,
+  showClientDetails: true,
+  headerStyle: "full",
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -22,8 +46,10 @@ serve(async (req) => {
       }
     );
 
-    const { invoiceId } = await req.json();
-    console.log('Generating PDF for invoice:', invoiceId);
+    const { invoiceId, templateConfig } = await req.json();
+    const config: TemplateConfig = { ...defaultConfig, ...templateConfig };
+    
+    console.log('Generating PDF for invoice:', invoiceId, 'with config:', config.layout);
 
     if (!invoiceId) {
       throw new Error('Invoice ID is required');
@@ -57,20 +83,21 @@ serve(async (req) => {
 
     invoice.line_items = (invoice.line_items || []).sort((a: any, b: any) => a.item_order - b.item_order);
 
-    const attachmentsWithUrls = await Promise.all(
-      (invoice.attachments || []).map(async (attachment: any) => {
-        const { data: urlData } = await supabaseClient.storage
-          .from('invoice-attachments')
-          .createSignedUrl(attachment.file_path, 3600);
-        
-        return {
-          ...attachment,
-          signed_url: urlData?.signedUrl || null,
-        };
-      })
-    );
+    // Get company logo if available
+    let logoUrl = null;
+    if (config.showLogo && invoice.company_id) {
+      const { data: company } = await supabaseClient
+        .from('companies')
+        .select('logo_url')
+        .eq('id', invoice.company_id)
+        .single();
+      
+      if (company?.logo_url) {
+        logoUrl = company.logo_url;
+      }
+    }
 
-    const html = generateInvoiceHTML(invoice, attachmentsWithUrls);
+    const html = generateInvoiceHTML(invoice, config, logoUrl);
     console.log('PDF HTML generated successfully');
 
     return new Response(html, {
@@ -92,7 +119,21 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
 }
 
-function generateInvoiceHTML(invoice: any, attachments: any[]): string {
+function getFontSize(size: string): { base: string; small: string; large: string; xlarge: string } {
+  switch (size) {
+    case 'small':
+      return { base: '9pt', small: '8pt', large: '11pt', xlarge: '16pt' };
+    case 'large':
+      return { base: '12pt', small: '10pt', large: '14pt', xlarge: '22pt' };
+    default:
+      return { base: '10pt', small: '9pt', large: '12pt', xlarge: '18pt' };
+  }
+}
+
+function generateInvoiceHTML(invoice: any, config: TemplateConfig, logoUrl: string | null): string {
+  const fontSize = getFontSize(config.fontSize);
+  const hasHoldback = invoice.holdback_enabled && invoice.holdback_amount > 0;
+
   const lineItemsHTML = invoice.line_items.map((item: any, index: number) => `
     <tr>
       <td>${index + 1}</td>
@@ -103,16 +144,18 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
     </tr>
   `).join('');
 
-  const imagesHTML = attachments
-    .filter(att => att.file_type?.startsWith('image/') && att.signed_url)
-    .map(att => `
-      <div class="image-item">
-        <img src="${att.signed_url}" alt="${att.file_name}" />
-        <p class="image-caption">${att.file_name}${att.description ? ' - ' + att.description : ''}</p>
-      </div>
-    `).join('');
-
-  const hasHoldback = invoice.holdback_enabled && invoice.holdback_amount > 0;
+  const layoutStyles = config.layout === 'modern' ? `
+    .header { border-bottom: none; padding-bottom: 0; }
+    .invoice-box { border: none; background: ${config.primaryColor}10; }
+    .bill-to { border-left: none; background: transparent; border: 1px solid #e5e7eb; }
+    table { border-radius: 8px; overflow: hidden; }
+  ` : config.layout === 'compact' ? `
+    body { padding: 0.3in; }
+    .header { margin-bottom: 16px; padding-bottom: 12px; }
+    .bill-to { padding: 12px; margin-bottom: 16px; }
+    table td, table th { padding: 6px 8px; }
+    .totals { width: 240px; }
+  ` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -121,33 +164,20 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Invoice ${invoice.invoice_number}</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Georgia&display=swap');
     
-    @page {
-      size: Letter;
-      margin: 0.5in;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    @page { size: Letter; margin: 0.5in; }
     
     @media print {
-      html, body {
-        width: 8.5in;
-        height: 11in;
-      }
-      .page-break {
-        page-break-before: always;
-      }
-      .no-print {
-        display: none !important;
-      }
+      html, body { width: 8.5in; height: 11in; }
+      .page-break { page-break-before: always; }
     }
     
     body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 11pt;
+      font-family: '${config.fontFamily}', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: ${fontSize.base};
       line-height: 1.4;
       color: #1f2937;
       background: #fff;
@@ -162,18 +192,31 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
       align-items: flex-start;
       margin-bottom: 24px;
       padding-bottom: 16px;
-      border-bottom: 3px solid #2563eb;
+      border-bottom: 3px solid ${config.primaryColor};
+    }
+    
+    .company-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    
+    .company-logo {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      border-radius: 8px;
     }
     
     .company-info h1 {
-      color: #2563eb;
-      font-size: 18pt;
+      color: ${config.primaryColor};
+      font-size: ${fontSize.xlarge};
       font-weight: 700;
       margin-bottom: 8px;
     }
     
     .company-info p {
-      font-size: 10pt;
+      font-size: ${fontSize.small};
       color: #4b5563;
       margin: 2px 0;
     }
@@ -186,31 +229,27 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
     }
     
     .invoice-box h2 {
-      color: #2563eb;
-      font-size: 20pt;
+      color: ${config.primaryColor};
+      font-size: ${fontSize.xlarge};
       font-weight: 700;
       margin-bottom: 8px;
     }
     
     .invoice-box p {
-      font-size: 10pt;
+      font-size: ${fontSize.small};
       margin: 3px 0;
-    }
-    
-    .invoice-box strong {
-      color: #374151;
     }
     
     .bill-to {
       background: #f3f4f6;
       padding: 16px;
       margin-bottom: 20px;
-      border-left: 4px solid #2563eb;
+      border-left: 4px solid ${config.primaryColor};
     }
     
     .bill-to h3 {
-      color: #2563eb;
-      font-size: 11pt;
+      color: ${config.primaryColor};
+      font-size: ${fontSize.base};
       font-weight: 600;
       margin-bottom: 8px;
       text-transform: uppercase;
@@ -218,7 +257,7 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
     }
     
     .bill-to p {
-      font-size: 10pt;
+      font-size: ${fontSize.small};
       margin: 2px 0;
     }
     
@@ -226,33 +265,21 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 20px;
-      font-size: 10pt;
+      font-size: ${fontSize.small};
     }
     
-    thead {
-      background: #2563eb;
-      color: white;
-    }
+    thead { background: ${config.primaryColor}; color: white; }
     
     th {
       padding: 10px 8px;
       text-align: left;
       font-weight: 600;
-      font-size: 10pt;
+      font-size: ${fontSize.small};
     }
     
-    th.num-col, td.num-col {
-      text-align: right;
-      width: 70px;
-    }
-    
-    th.amount-col, td.amount-col {
-      width: 90px;
-    }
-    
-    th:first-child {
-      width: 30px;
-    }
+    th.num-col, td.num-col { text-align: right; width: 70px; }
+    th.amount-col, td.amount-col { width: 90px; }
+    th:first-child { width: 30px; }
     
     td {
       padding: 10px 8px;
@@ -260,25 +287,12 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
       vertical-align: top;
     }
     
-    td.desc-col {
-      max-width: 300px;
-      word-wrap: break-word;
-    }
+    td.desc-col { max-width: 300px; word-wrap: break-word; }
+    tbody tr:nth-child(even) { background: #f9fafb; }
     
-    tbody tr:nth-child(even) {
-      background: #f9fafb;
-    }
+    .totals-section { display: flex; justify-content: flex-end; margin-bottom: 20px; }
     
-    .totals-section {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 20px;
-    }
-    
-    .totals {
-      width: 280px;
-      font-size: 10pt;
-    }
+    .totals { width: 280px; font-size: ${fontSize.small}; }
     
     .totals-row {
       display: flex;
@@ -287,9 +301,7 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
       border-bottom: 1px solid #e5e7eb;
     }
     
-    .totals-row.subtotal {
-      font-weight: 600;
-    }
+    .totals-row.subtotal { font-weight: 600; }
     
     .totals-row.holdback {
       color: #dc2626;
@@ -306,34 +318,30 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
     }
     
     .totals-row.total {
-      font-size: 12pt;
+      font-size: ${fontSize.large};
       font-weight: 700;
-      color: #2563eb;
-      border-top: 2px solid #2563eb;
+      color: ${config.primaryColor};
+      border-top: 2px solid ${config.primaryColor};
       border-bottom: none;
       margin-top: 8px;
       padding-top: 10px;
     }
     
     .comments {
-      background: #2563eb;
+      background: ${config.primaryColor};
       color: white;
       padding: 12px 16px;
       margin-top: 24px;
     }
     
     .comments h3 {
-      font-size: 10pt;
+      font-size: ${fontSize.small};
       font-weight: 600;
       margin-bottom: 8px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
     
-    .comments p {
-      font-size: 10pt;
-      line-height: 1.5;
-    }
+    .comments p { font-size: ${fontSize.small}; line-height: 1.5; }
     
     .footer {
       margin-top: 24px;
@@ -342,44 +350,6 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
       text-align: center;
       font-size: 9pt;
       color: #9ca3af;
-    }
-    
-    .images-section {
-      page-break-before: always;
-      padding-top: 20px;
-    }
-    
-    .images-section h2 {
-      color: #2563eb;
-      font-size: 14pt;
-      margin-bottom: 16px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid #2563eb;
-    }
-    
-    .images-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-    }
-    
-    .image-item {
-      page-break-inside: avoid;
-      text-align: center;
-    }
-    
-    .image-item img {
-      max-width: 100%;
-      max-height: 300px;
-      object-fit: contain;
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
-    }
-    
-    .image-caption {
-      font-size: 9pt;
-      color: #6b7280;
-      margin-top: 6px;
     }
     
     .status-badge {
@@ -392,27 +362,36 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
     }
     
     .status-unpaid { background: #fef3c7; color: #92400e; }
-    .status-paid { background: #d1fae5; color: #065f46; }
+    .status-paid, .status-fully_paid { background: #d1fae5; color: #065f46; }
+    .status-draft { background: #e5e7eb; color: #374151; }
+    
+    ${layoutStyles}
   </style>
 </head>
 <body>
   <div class="header">
     <div class="company-info">
-      <h1>${invoice.company_name || 'Company Name'}</h1>
-      ${invoice.company_address ? `<p>${invoice.company_address}</p>` : ''}
-      ${invoice.company_hst ? `<p>HST/GST: ${invoice.company_hst}</p>` : ''}
-      ${invoice.company_phone ? `<p>Tel: ${invoice.company_phone}</p>` : ''}
-      ${invoice.company_email ? `<p>Email: ${invoice.company_email}</p>` : ''}
-      ${invoice.company_website ? `<p>Web: ${invoice.company_website}</p>` : ''}
+      ${logoUrl && config.showLogo ? `<img src="${logoUrl}" alt="Company Logo" class="company-logo" />` : ''}
+      <div>
+        <h1>${invoice.company_name || 'Company Name'}</h1>
+        ${config.showCompanyDetails && config.headerStyle === 'full' ? `
+          ${invoice.company_address ? `<p>${invoice.company_address}</p>` : ''}
+          ${invoice.company_hst ? `<p>HST/GST: ${invoice.company_hst}</p>` : ''}
+          ${invoice.company_phone ? `<p>Tel: ${invoice.company_phone}</p>` : ''}
+          ${invoice.company_email ? `<p>Email: ${invoice.company_email}</p>` : ''}
+          ${invoice.company_website ? `<p>Web: ${invoice.company_website}</p>` : ''}
+        ` : ''}
+      </div>
     </div>
     <div class="invoice-box">
       <h2>INVOICE</h2>
       <p><strong>Invoice #:</strong> ${invoice.invoice_number}</p>
       <p><strong>Date:</strong> ${new Date(invoice.invoice_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-      <p><strong>Status:</strong> <span class="status-badge status-${invoice.status}">${invoice.status}</span></p>
+      <p><strong>Status:</strong> <span class="status-badge status-${invoice.status}">${invoice.status.replace('_', ' ')}</span></p>
     </div>
   </div>
 
+  ${config.showClientDetails ? `
   <div class="bill-to">
     <h3>Bill To</h3>
     <p><strong>${invoice.client_name}</strong></p>
@@ -421,6 +400,7 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
     ${invoice.client_email ? `<p>${invoice.client_email}</p>` : ''}
     ${invoice.client_phone ? `<p>${invoice.client_phone}</p>` : ''}
   </div>
+  ` : ''}
 
   <table>
     <thead>
@@ -474,22 +454,6 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
   <div class="footer">
     <p>Generated on ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}</p>
   </div>
-
-  ${attachments.filter(att => att.file_type?.startsWith('image/')).length > 0 ? `
-  <div class="images-section">
-    <h2>Attached Documentation</h2>
-    <div class="images-grid">
-      ${imagesHTML}
-    </div>
-  </div>
-  ` : ''}
-
-  <script>
-    // Auto-trigger print on load
-    window.onafterprint = function() {
-      // Optional: close window after print
-    };
-  </script>
 </body>
 </html>`;
 }
