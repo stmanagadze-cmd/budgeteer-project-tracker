@@ -15,9 +15,9 @@ export const useProjects = (userId: string | undefined) => {
     if (!userId) return;
     
     try {
-      // Batch fetch projects and work periods in parallel
+      // Batch fetch projects (sorted by created_at desc) and work periods in parallel
       const [projectsRes, periodsRes] = await Promise.all([
-        supabase.from("projects").select("*").eq("user_id", userId),
+        supabase.from("projects").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("work_periods").select("*")
       ]);
 
@@ -48,12 +48,14 @@ export const useProjects = (userId: string | undefined) => {
         periodsMap.set(wp.project_id, projectPeriods);
       });
 
+      // Projects already sorted by created_at desc from DB
       const projectsWithPeriods: Project[] = projectsData.map(p => ({
         id: p.id,
         name: p.name,
         hourlySalary: Number(p.hourly_salary),
         targetBudget: Number(p.target_budget),
         workPeriods: periodsMap.get(p.id) || [],
+        createdAt: p.created_at,
       }));
 
       setProjects(projectsWithPeriods);
@@ -90,22 +92,25 @@ export const useProjects = (userId: string | undefined) => {
     };
   }, [userId, fetchProjects]);
 
-  const addProject = useCallback(async (project: Omit<Project, "id" | "workPeriods">) => {
+  const addProject = useCallback(async (project: Omit<Project, "id" | "workPeriods" | "createdAt">) => {
     if (!userId) return;
 
     try {
       const validatedProject = projectSchema.parse(project);
 
-      // Optimistic update
+      // Optimistic update - insert at top with current timestamp
       const tempId = `temp-${Date.now()}`;
+      const now = new Date().toISOString();
       const newProject: Project = {
         id: tempId,
         name: validatedProject.name,
         hourlySalary: validatedProject.hourlySalary,
         targetBudget: validatedProject.targetBudget,
         workPeriods: [],
+        createdAt: now,
       };
       
+      // Insert at top (newest first)
       setProjects(prev => [newProject, ...prev]);
 
       const { data, error } = await supabase
@@ -125,9 +130,9 @@ export const useProjects = (userId: string | undefined) => {
         throw error;
       }
 
-      // Replace temp with real ID
+      // Replace temp with real ID and actual createdAt
       setProjects(prev => prev.map(p => 
-        p.id === tempId ? { ...p, id: data.id } : p
+        p.id === tempId ? { ...p, id: data.id, createdAt: data.created_at } : p
       ));
 
       toast({ title: "Project created", description: `${validatedProject.name} has been created.` });
