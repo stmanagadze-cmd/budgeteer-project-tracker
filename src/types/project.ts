@@ -17,4 +17,5 @@ export interface Project {
   hourlySalary: number;
   targetBudget: number;
   workPeriods: WorkPeriod[];
+  createdAt: string;
 }
