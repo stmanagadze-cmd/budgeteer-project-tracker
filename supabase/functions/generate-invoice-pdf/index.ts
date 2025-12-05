@@ -23,12 +23,12 @@ serve(async (req) => {
     );
 
     const { invoiceId } = await req.json();
+    console.log('Generating PDF for invoice:', invoiceId);
 
     if (!invoiceId) {
       throw new Error('Invoice ID is required');
     }
 
-    // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('No authorization header');
@@ -39,7 +39,6 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    // Fetch invoice with all related data
     const { data: invoice, error: invoiceError } = await supabaseClient
       .from('invoices')
       .select(`
@@ -52,13 +51,12 @@ serve(async (req) => {
       .single();
 
     if (invoiceError || !invoice) {
+      console.error('Invoice fetch error:', invoiceError);
       throw new Error('Invoice not found or access denied');
     }
 
-    // Sort line items by order
     invoice.line_items = (invoice.line_items || []).sort((a: any, b: any) => a.item_order - b.item_order);
 
-    // Get signed URLs for attachments
     const attachmentsWithUrls = await Promise.all(
       (invoice.attachments || []).map(async (attachment: any) => {
         const { data: urlData } = await supabaseClient.storage
@@ -72,13 +70,13 @@ serve(async (req) => {
       })
     );
 
-    // Generate HTML for PDF
     const html = generateInvoiceHTML(invoice, attachmentsWithUrls);
+    console.log('PDF HTML generated successfully');
 
     return new Response(html, {
       headers: {
         ...corsHeaders,
-        'Content-Type': 'text/html',
+        'Content-Type': 'text/html; charset=utf-8',
       },
     });
   } catch (error: any) {
@@ -90,180 +88,333 @@ serve(async (req) => {
   }
 });
 
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+}
+
 function generateInvoiceHTML(invoice: any, attachments: any[]): string {
   const lineItemsHTML = invoice.line_items.map((item: any, index: number) => `
     <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${index + 1}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.description}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">${item.hours.toFixed(1)}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${item.price.toFixed(2)}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;">$${item.amount.toFixed(2)}</td>
+      <td>${index + 1}</td>
+      <td class="desc-col">${item.description || ''}</td>
+      <td class="num-col">${(item.hours || 0).toFixed(1)}</td>
+      <td class="num-col">${formatCurrency(item.price || 0)}</td>
+      <td class="num-col amount-col">${formatCurrency(item.amount || 0)}</td>
     </tr>
   `).join('');
 
   const imagesHTML = attachments
-    .filter(att => att.file_type.startsWith('image/') && att.signed_url)
+    .filter(att => att.file_type?.startsWith('image/') && att.signed_url)
     .map(att => `
-      <div style="page-break-inside: avoid; margin-bottom: 20px;">
-        <img 
-          src="${att.signed_url}" 
-          alt="${att.file_name}"
-          style="max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 8px; display: block; margin: 0 auto;"
-          onclick="this.requestFullscreen()"
-        />
-        <p style="text-align: center; margin-top: 8px; font-size: 12px; color: #6b7280;">
-          ${att.file_name}${att.description ? ' - ' + att.description : ''}
-        </p>
+      <div class="image-item">
+        <img src="${att.signed_url}" alt="${att.file_name}" />
+        <p class="image-caption">${att.file_name}${att.description ? ' - ' + att.description : ''}</p>
       </div>
     `).join('');
 
-  return `
-<!DOCTYPE html>
-<html>
+  const hasHoldback = invoice.holdback_enabled && invoice.holdback_amount > 0;
+
+  return `<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Invoice ${invoice.invoice_number}</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    @page {
+      size: Letter;
+      margin: 0.5in;
+    }
+    
     @media print {
-      @page { margin: 0.5in; }
-      .no-print { display: none; }
-      .page-break { page-break-before: always; }
+      html, body {
+        width: 8.5in;
+        height: 11in;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      .no-print {
+        display: none !important;
+      }
     }
+    
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      line-height: 1.6;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
       color: #1f2937;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
       background: #fff;
+      padding: 0.5in;
+      max-width: 8.5in;
+      margin: 0 auto;
     }
+    
     .header {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 40px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid #fb923c;
+      align-items: flex-start;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 3px solid #2563eb;
     }
+    
     .company-info h1 {
-      margin: 0 0 10px 0;
-      color: #fb923c;
-      font-size: 24px;
+      color: #2563eb;
+      font-size: 18pt;
+      font-weight: 700;
+      margin-bottom: 8px;
     }
+    
     .company-info p {
-      margin: 4px 0;
-      font-size: 14px;
+      font-size: 10pt;
+      color: #4b5563;
+      margin: 2px 0;
     }
-    .invoice-details {
+    
+    .invoice-box {
+      border: 2px solid #e5e7eb;
+      padding: 12px 16px;
       text-align: right;
+      min-width: 180px;
     }
-    .invoice-details h2 {
-      margin: 0 0 10px 0;
-      font-size: 32px;
-      color: #fb923c;
+    
+    .invoice-box h2 {
+      color: #2563eb;
+      font-size: 20pt;
+      font-weight: 700;
+      margin-bottom: 8px;
     }
-    .invoice-details p {
-      margin: 4px 0;
-      font-size: 14px;
+    
+    .invoice-box p {
+      font-size: 10pt;
+      margin: 3px 0;
     }
+    
+    .invoice-box strong {
+      color: #374151;
+    }
+    
     .bill-to {
-      margin-bottom: 30px;
-      padding: 20px;
-      background: #f9fafb;
-      border-radius: 8px;
+      background: #f3f4f6;
+      padding: 16px;
+      margin-bottom: 20px;
+      border-left: 4px solid #2563eb;
     }
+    
     .bill-to h3 {
-      margin: 0 0 10px 0;
-      color: #fb923c;
+      color: #2563eb;
+      font-size: 11pt;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
+    
+    .bill-to p {
+      font-size: 10pt;
+      margin: 2px 0;
+    }
+    
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
+      font-size: 10pt;
     }
-    th {
-      background: #fb923c;
+    
+    thead {
+      background: #2563eb;
       color: white;
-      padding: 12px;
+    }
+    
+    th {
+      padding: 10px 8px;
       text-align: left;
       font-weight: 600;
+      font-size: 10pt;
     }
-    th:nth-child(3), th:nth-child(4), th:nth-child(5),
-    td:nth-child(3), td:nth-child(4), td:nth-child(5) {
+    
+    th.num-col, td.num-col {
       text-align: right;
+      width: 70px;
     }
-    .totals {
-      max-width: 400px;
-      margin-left: auto;
-      padding: 20px;
+    
+    th.amount-col, td.amount-col {
+      width: 90px;
+    }
+    
+    th:first-child {
+      width: 30px;
+    }
+    
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+    
+    td.desc-col {
+      max-width: 300px;
+      word-wrap: break-word;
+    }
+    
+    tbody tr:nth-child(even) {
       background: #f9fafb;
-      border-radius: 8px;
     }
+    
+    .totals-section {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 20px;
+    }
+    
+    .totals {
+      width: 280px;
+      font-size: 10pt;
+    }
+    
     .totals-row {
       display: flex;
       justify-content: space-between;
-      padding: 8px 0;
+      padding: 6px 0;
       border-bottom: 1px solid #e5e7eb;
     }
+    
+    .totals-row.subtotal {
+      font-weight: 600;
+    }
+    
+    .totals-row.holdback {
+      color: #dc2626;
+      background: #fef2f2;
+      margin: 0 -8px;
+      padding: 6px 8px;
+    }
+    
+    .totals-row.net {
+      font-weight: 600;
+      background: #f0f9ff;
+      margin: 0 -8px;
+      padding: 6px 8px;
+    }
+    
     .totals-row.total {
-      font-size: 18px;
-      font-weight: bold;
-      border-top: 2px solid #fb923c;
-      margin-top: 10px;
+      font-size: 12pt;
+      font-weight: 700;
+      color: #2563eb;
+      border-top: 2px solid #2563eb;
+      border-bottom: none;
+      margin-top: 8px;
       padding-top: 10px;
     }
+    
     .comments {
-      margin-top: 30px;
-      padding: 20px;
-      background: #f9fafb;
-      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      padding: 12px 16px;
+      margin-top: 24px;
     }
+    
     .comments h3 {
-      margin: 0 0 10px 0;
-      color: #fb923c;
+      font-size: 10pt;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
+    
+    .comments p {
+      font-size: 10pt;
+      line-height: 1.5;
+    }
+    
     .footer {
-      margin-top: 40px;
-      padding-top: 20px;
+      margin-top: 24px;
+      padding-top: 12px;
       border-top: 1px solid #e5e7eb;
       text-align: center;
-      font-size: 12px;
-      color: #6b7280;
+      font-size: 9pt;
+      color: #9ca3af;
     }
+    
     .images-section {
-      margin-top: 40px;
       page-break-before: always;
+      padding-top: 20px;
     }
+    
     .images-section h2 {
-      color: #fb923c;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 2px solid #fb923c;
+      color: #2563eb;
+      font-size: 14pt;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #2563eb;
     }
+    
+    .images-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    
+    .image-item {
+      page-break-inside: avoid;
+      text-align: center;
+    }
+    
+    .image-item img {
+      max-width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    
+    .image-caption {
+      font-size: 9pt;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 9pt;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .status-unpaid { background: #fef3c7; color: #92400e; }
+    .status-paid { background: #d1fae5; color: #065f46; }
   </style>
 </head>
 <body>
-  <!-- Invoice Page -->
   <div class="header">
     <div class="company-info">
       <h1>${invoice.company_name || 'Company Name'}</h1>
       ${invoice.company_address ? `<p>${invoice.company_address}</p>` : ''}
-      ${invoice.company_hst ? `<p>HST: ${invoice.company_hst}</p>` : ''}
-      ${invoice.company_phone ? `<p>Phone: ${invoice.company_phone}</p>` : ''}
+      ${invoice.company_hst ? `<p>HST/GST: ${invoice.company_hst}</p>` : ''}
+      ${invoice.company_phone ? `<p>Tel: ${invoice.company_phone}</p>` : ''}
       ${invoice.company_email ? `<p>Email: ${invoice.company_email}</p>` : ''}
-      ${invoice.company_website ? `<p>Website: ${invoice.company_website}</p>` : ''}
+      ${invoice.company_website ? `<p>Web: ${invoice.company_website}</p>` : ''}
     </div>
-    <div class="invoice-details">
+    <div class="invoice-box">
       <h2>INVOICE</h2>
       <p><strong>Invoice #:</strong> ${invoice.invoice_number}</p>
-      <p><strong>Date:</strong> ${new Date(invoice.invoice_date).toLocaleDateString()}</p>
-      <p><strong>Status:</strong> ${invoice.status.toUpperCase()}</p>
+      <p><strong>Date:</strong> ${new Date(invoice.invoice_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      <p><strong>Status:</strong> <span class="status-badge status-${invoice.status}">${invoice.status}</span></p>
     </div>
   </div>
 
   <div class="bill-to">
-    <h3>BILL TO</h3>
+    <h3>Bill To</h3>
     <p><strong>${invoice.client_name}</strong></p>
     ${invoice.client_contact ? `<p>${invoice.client_contact}</p>` : ''}
     ${invoice.client_address ? `<p>${invoice.client_address}</p>` : ''}
@@ -274,64 +425,71 @@ function generateInvoiceHTML(invoice: any, attachments: any[]): string {
   <table>
     <thead>
       <tr>
-        <th style="width: 50px;">#</th>
+        <th>#</th>
         <th>Description</th>
-        <th style="width: 80px;">HR</th>
-        <th style="width: 100px;">Price</th>
-        <th style="width: 120px;">Amount</th>
+        <th class="num-col">Hours</th>
+        <th class="num-col">Rate</th>
+        <th class="num-col amount-col">Amount</th>
       </tr>
     </thead>
     <tbody>
-      ${lineItemsHTML}
+      ${lineItemsHTML || '<tr><td colspan="5" style="text-align: center; color: #9ca3af;">No line items</td></tr>'}
     </tbody>
   </table>
 
-  <div class="totals">
-    <div class="totals-row">
-      <span>Subtotal Hours:</span>
-      <span>${invoice.subtotal_hours.toFixed(1)}</span>
-    </div>
-    <div class="totals-row">
-      <span>Total KM:</span>
-      <span>${invoice.total_km.toFixed(1)}</span>
-    </div>
-    <div class="totals-row">
-      <span>Fuel Charge:</span>
-      <span>$${invoice.fuel_charge.toFixed(2)}</span>
-    </div>
-    <div class="totals-row">
-      <span>Net Amount:</span>
-      <span>$${invoice.net_amount.toFixed(2)}</span>
-    </div>
-    <div class="totals-row">
-      <span>Tax (${invoice.tax_rate}%):</span>
-      <span>$${invoice.tax_due.toFixed(2)}</span>
-    </div>
-    <div class="totals-row total">
-      <span>TOTAL PAYABLE:</span>
-      <span>$${invoice.total_payable.toFixed(2)}</span>
+  <div class="totals-section">
+    <div class="totals">
+      <div class="totals-row subtotal">
+        <span>Subtotal (${(invoice.subtotal_hours || 0).toFixed(1)} hrs):</span>
+        <span>${formatCurrency(invoice.net_amount + (invoice.holdback_amount || 0))}</span>
+      </div>
+      ${hasHoldback ? `
+      <div class="totals-row holdback">
+        <span>Holdback (${invoice.holdback_percentage}%):</span>
+        <span>-${formatCurrency(invoice.holdback_amount)}</span>
+      </div>
+      <div class="totals-row net">
+        <span>Net Amount:</span>
+        <span>${formatCurrency(invoice.net_amount)}</span>
+      </div>
+      ` : ''}
+      <div class="totals-row">
+        <span>Tax (${invoice.tax_rate || 13}%):</span>
+        <span>${formatCurrency(invoice.tax_due)}</span>
+      </div>
+      <div class="totals-row total">
+        <span>TOTAL PAYABLE:</span>
+        <span>${formatCurrency(invoice.total_payable)}</span>
+      </div>
     </div>
   </div>
 
   ${invoice.comments ? `
   <div class="comments">
-    <h3>OTHER COMMENTS</h3>
+    <h3>Other Comments</h3>
     <p>${invoice.comments.replace(/\n/g, '<br>')}</p>
   </div>
   ` : ''}
 
   <div class="footer">
-    <p>Generated on ${new Date().toLocaleString()}</p>
+    <p>Generated on ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}</p>
   </div>
 
-  <!-- Attached Images -->
-  ${attachments.filter(att => att.file_type.startsWith('image/')).length > 0 ? `
+  ${attachments.filter(att => att.file_type?.startsWith('image/')).length > 0 ? `
   <div class="images-section">
-    <h2>Work Report - Attached Images</h2>
-    ${imagesHTML}
+    <h2>Attached Documentation</h2>
+    <div class="images-grid">
+      ${imagesHTML}
+    </div>
   </div>
   ` : ''}
+
+  <script>
+    // Auto-trigger print on load
+    window.onafterprint = function() {
+      // Optional: close window after print
+    };
+  </script>
 </body>
-</html>
-  `;
+</html>`;
 }
