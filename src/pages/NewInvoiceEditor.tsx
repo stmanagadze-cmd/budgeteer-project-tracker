@@ -244,6 +244,66 @@ export default function NewInvoiceEditor() {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    if (!id) {
+      toast({
+        title: "Please save the invoice first",
+        description: "Save the invoice before downloading PDF",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Generating PDF",
+        description: "Opening print preview...",
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-invoice-pdf', {
+        body: { invoiceId: id },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to generate PDF');
+      }
+
+      if (!data) {
+        throw new Error('No data received from PDF service');
+      }
+
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
+      if (printWindow) {
+        printWindow.document.write(data);
+        printWindow.document.close();
+        
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 1000);
+
+        toast({
+          title: "Success",
+          description: "Use 'Save as PDF' in the print dialog",
+        });
+      } else {
+        toast({
+          title: "Popup Blocked",
+          description: "Please allow popups for this site and try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
   const totals = calculateTotals();
   const selectedCompany = companies.find((c) => c.id === formData.company_id);
   const selectedClient = clients.find((c) => c.id === formData.client_id);
@@ -265,7 +325,7 @@ export default function NewInvoiceEditor() {
             <Save className="mr-2 h-4 w-4" />
             Save
           </Button>
-          <Button>
+          <Button onClick={handleDownloadPDF}>
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
