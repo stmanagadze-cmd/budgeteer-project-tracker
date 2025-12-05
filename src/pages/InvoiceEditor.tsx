@@ -135,7 +135,7 @@ const InvoiceEditor = () => {
     try {
       toast({
         title: "Generating PDF",
-        description: "Please wait...",
+        description: "Opening print preview...",
       });
 
       const { data, error } = await supabase.functions.invoke('generate-invoice-pdf', {
@@ -144,25 +144,31 @@ const InvoiceEditor = () => {
 
       if (error) throw error;
 
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${invoice.invoice_number}_${invoice.invoice_date}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Open HTML in new window for print-to-PDF
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(data);
+        printWindow.document.close();
+        
+        // Wait for images to load then trigger print
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        };
+      } else {
+        throw new Error('Could not open print window. Please allow popups.');
+      }
 
       toast({
         title: "Success",
-        description: "PDF downloaded successfully",
+        description: "Use 'Save as PDF' in the print dialog to download",
       });
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast({
         title: "Error",
-        description: "Failed to generate PDF",
+        description: error.message || "Failed to generate PDF",
         variant: "destructive",
       });
     }
