@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Invoice } from "@/types/invoice";
 import { Company } from "@/types/company";
 import { Client } from "@/types/client";
+import { Expense } from "@/types/expense";
 
 export interface DashboardData {
   totalIncome: number;
@@ -15,12 +16,14 @@ export interface DashboardData {
   unpaidInvoices: Invoice[];
   incomeByMonth: { month: string; income: number; expenses: number }[];
   incomeByCompany: { company: string; value: number }[];
+  expensesByMonth: { month: string; total: number }[];
 }
 
 export const useDashboardData = (userId?: string, selectedCompanyIds: string[] = []) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,7 +31,7 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
 
     const fetchData = async () => {
       try {
-        const [invoicesRes, companiesRes, clientsRes] = await Promise.all([
+        const [invoicesRes, companiesRes, clientsRes, expensesRes] = await Promise.all([
           supabase
             .from("invoices")
             .select("*")
@@ -42,15 +45,22 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
             .from("clients")
             .select("*")
             .eq("user_id", userId),
+          supabase
+            .from("expenses")
+            .select("*")
+            .eq("user_id", userId)
+            .order("expense_date", { ascending: false }),
         ]);
 
         if (invoicesRes.error) throw invoicesRes.error;
         if (companiesRes.error) throw companiesRes.error;
         if (clientsRes.error) throw clientsRes.error;
+        if (expensesRes.error) throw expensesRes.error;
 
         setInvoices((invoicesRes.data || []) as Invoice[]);
         setCompanies(companiesRes.data || []);
         setClients(clientsRes.data || []);
+        setExpenses((expensesRes.data || []) as Expense[]);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -67,6 +77,11 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
         { event: "*", schema: "public", table: "invoices", filter: `user_id=eq.${userId}` },
         () => fetchData()
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses", filter: `user_id=eq.${userId}` },
+        () => fetchData()
+      )
       .subscribe();
 
     return () => {
@@ -80,14 +95,17 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
       ? invoices.filter(inv => inv.company_id && selectedCompanyIds.includes(inv.company_id))
       : invoices;
 
-    // Calculate total income (sum of all paid invoices)
-    const paidInvoices = filteredInvoices.filter(inv => 
-      inv.status === "paid_by_holdback" || inv.status === "fully_paid"
-    );
+    // Filter expenses by selected companies
+    const filteredExpenses = selectedCompanyIds.length > 0
+      ? expenses.filter(exp => exp.company_id && selectedCompanyIds.includes(exp.company_id))
+      : expenses;
+
+    // Calculate total income (sum of all paid invoices - "fully_paid" status)
+    const paidInvoices = filteredInvoices.filter(inv => inv.status === "fully_paid");
     const totalIncome = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
 
-    // Mock expenses (30% of income for demo purposes)
-    const totalExpenses = totalIncome * 0.3;
+    // Calculate real expenses from expenses table
+    const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
     const currentBalance = totalIncome - totalExpenses;
 
@@ -120,8 +138,9 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
     // Calculate upcoming income (unpaid invoices)
     const upcomingIncome = unpaidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
 
-    // Income by month (last 6 months)
+    // Income and Expenses by month (last 6 months)
     const incomeByMonth = [];
+    const expensesByMonth = [];
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
@@ -132,9 +151,15 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
         inv.invoice_date && inv.invoice_date.startsWith(monthKey)
       );
       const income = monthInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-      const expenses = income * 0.3; // Mock expenses
+      
+      // Real expenses from expenses table
+      const monthExpenses = filteredExpenses.filter(exp => 
+        exp.expense_date && exp.expense_date.startsWith(monthKey)
+      );
+      const expensesTotal = monthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
-      incomeByMonth.push({ month: monthName, income, expenses });
+      incomeByMonth.push({ month: monthName, income, expenses: expensesTotal });
+      expensesByMonth.push({ month: monthName, total: expensesTotal });
     }
 
     // Income by company
@@ -165,8 +190,9 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
       unpaidInvoices,
       incomeByMonth,
       incomeByCompany,
+      expensesByMonth,
     };
-  }, [invoices, companies, selectedCompanyIds]);
+  }, [invoices, companies, expenses, selectedCompanyIds]);
 
   return {
     companies,

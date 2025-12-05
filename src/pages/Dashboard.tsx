@@ -2,9 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useExpenseCategories } from "@/hooks/useExpenseCategories";
+import { useExpenses } from "@/hooks/useExpenses";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { DashboardCharts } from "@/components/DashboardCharts";
+import { ExpenseBreakdown } from "@/components/ExpenseBreakdown";
+import { ManageCategoriesDialog } from "@/components/ManageCategoriesDialog";
+import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -15,12 +21,24 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { Settings, Plus } from "lucide-react";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
+  const [categoriesDialogOpen, setCategoriesDialogOpen] = useState(false);
+  const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
+  
   const { companies, dashboardData, loading } = useDashboardData(userId, selectedCompanyIds);
+  const { 
+    categories, 
+    hierarchicalCategories, 
+    createCategory, 
+    updateCategory, 
+    deleteCategory 
+  } = useExpenseCategories(userId);
+  const { expenses, createExpense } = useExpenses(userId, selectedCompanyIds);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -88,11 +106,28 @@ const Dashboard = () => {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Financial Dashboard</h1>
-            <CompanyFilter
-              companies={companies}
-              selectedIds={selectedCompanyIds}
-              onSelectionChange={setSelectedCompanyIds}
-            />
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCategoriesDialogOpen(true)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Manage Categories
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setAddExpenseDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+              <CompanyFilter
+                companies={companies}
+                selectedIds={selectedCompanyIds}
+                onSelectionChange={setSelectedCompanyIds}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -103,6 +138,13 @@ const Dashboard = () => {
 
         {/* Charts */}
         <DashboardCharts data={dashboardData} />
+
+        {/* Expense Breakdown */}
+        <ExpenseBreakdown
+          expenses={expenses}
+          categories={categories}
+          hierarchicalCategories={hierarchicalCategories}
+        />
 
         {/* Unpaid Invoices Table */}
         <div className="border rounded-lg">
@@ -152,6 +194,25 @@ const Dashboard = () => {
           </Table>
         </div>
       </main>
+
+      {/* Dialogs */}
+      <ManageCategoriesDialog
+        open={categoriesDialogOpen}
+        onOpenChange={setCategoriesDialogOpen}
+        categories={categories}
+        hierarchicalCategories={hierarchicalCategories}
+        onCreateCategory={createCategory}
+        onUpdateCategory={updateCategory}
+        onDeleteCategory={deleteCategory}
+      />
+
+      <AddExpenseDialog
+        open={addExpenseDialogOpen}
+        onOpenChange={setAddExpenseDialogOpen}
+        categories={categories}
+        companies={companies}
+        onCreateExpense={createExpense}
+      />
     </div>
   );
 };
