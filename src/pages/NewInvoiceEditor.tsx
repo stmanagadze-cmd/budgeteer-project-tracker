@@ -12,6 +12,8 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Save, Download, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { InvoiceLineItem } from "@/types/invoice";
+import { InvoiceTemplateDialog, TemplateConfig } from "@/components/InvoiceTemplateDialog";
+import JSZip from "jszip";
 
 export default function NewInvoiceEditor() {
   const { id } = useParams();
@@ -40,6 +42,9 @@ export default function NewInvoiceEditor() {
     price: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -100,6 +105,24 @@ export default function NewInvoiceEditor() {
 
     loadInvoice();
   }, [id, userId]);
+
+  // Load attachments for the invoice
+  useEffect(() => {
+    if (!id) return;
+    
+    const loadAttachments = async () => {
+      const { data, error } = await supabase
+        .from("invoice_attachments")
+        .select("*")
+        .eq("invoice_id", id);
+      
+      if (!error && data) {
+        setAttachments(data);
+      }
+    };
+    
+    loadAttachments();
+  }, [id]);
 
   useEffect(() => {
     if (formData.client_id && !id) {
@@ -244,7 +267,7 @@ export default function NewInvoiceEditor() {
     }
   };
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF = async (templateConfig: TemplateConfig) => {
     if (!id) {
       toast({
         title: "Please save the invoice first",
@@ -254,14 +277,16 @@ export default function NewInvoiceEditor() {
       return;
     }
 
+    setIsDownloading(true);
+
     try {
       toast({
         title: "Generating PDF",
-        description: "Opening print preview...",
+        description: attachments.length > 0 ? "Creating ZIP with attachments..." : "Please wait...",
       });
 
       const { data, error } = await supabase.functions.invoke('generate-invoice-pdf', {
-        body: { invoiceId: id },
+        body: { invoiceId: id, templateConfig },
       });
 
       if (error) {
@@ -273,26 +298,71 @@ export default function NewInvoiceEditor() {
         throw new Error('No data received from PDF service');
       }
 
-      const printWindow = window.open('', '_blank', 'width=900,height=700');
-      if (printWindow) {
-        printWindow.document.write(data);
-        printWindow.document.close();
+      // If there are attachments, create a ZIP file
+      if (attachments.length > 0) {
+        const zip = new JSZip();
         
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-        }, 1000);
+        // Add the HTML invoice as a file (user can print to PDF)
+        zip.file(`Invoice_${formData.invoice_number}.html`, data);
+        
+        // Add a folder for attachments
+        const attachmentsFolder = zip.folder("Attachments");
+        
+        // Fetch and add each attachment
+        for (const attachment of attachments) {
+          try {
+            const { data: signedUrlData } = await supabase.storage
+              .from('invoice-attachments')
+              .createSignedUrl(attachment.file_path, 3600);
+            
+            if (signedUrlData?.signedUrl) {
+              const response = await fetch(signedUrlData.signedUrl);
+              const blob = await response.blob();
+              attachmentsFolder?.file(attachment.file_name, blob);
+            }
+          } catch (err) {
+            console.error('Error fetching attachment:', attachment.file_name, err);
+          }
+        }
+        
+        // Generate and download the ZIP
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Invoice_${formData.invoice_number}_Package.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
         toast({
           title: "Success",
-          description: "Use 'Save as PDF' in the print dialog",
+          description: "ZIP package downloaded with invoice and attachments",
         });
       } else {
-        toast({
-          title: "Popup Blocked",
-          description: "Please allow popups for this site and try again",
-          variant: "destructive",
-        });
+        // No attachments, just open the print preview
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        if (printWindow) {
+          printWindow.document.write(data);
+          printWindow.document.close();
+          
+          setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+          }, 1000);
+
+          toast({
+            title: "Success",
+            description: "Use 'Save as PDF' in the print dialog",
+          });
+        } else {
+          toast({
+            title: "Popup Blocked",
+            description: "Please allow popups for this site and try again",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error: any) {
       console.error('Error generating PDF:', error);
@@ -301,6 +371,9 @@ export default function NewInvoiceEditor() {
         description: error.message || "Failed to generate PDF",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
+      setTemplateDialogOpen(false);
     }
   };
 
@@ -325,7 +398,7 @@ export default function NewInvoiceEditor() {
             <Save className="mr-2 h-4 w-4" />
             Save
           </Button>
-          <Button onClick={handleDownloadPDF}>
+          <Button onClick={() => setTemplateDialogOpen(true)}>
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
@@ -568,6 +641,14 @@ export default function NewInvoiceEditor() {
           </div>
         </div>
       </div>
+
+      <InvoiceTemplateDialog
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        onDownload={handleDownloadPDF}
+        attachmentCount={attachments.length}
+        isLoading={isDownloading}
+      />
     </div>
   );
 }
