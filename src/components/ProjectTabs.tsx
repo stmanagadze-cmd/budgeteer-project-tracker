@@ -30,6 +30,13 @@ const ProjectTabs = ({
     <div className="bg-card border-b border-border">
       <div className="container mx-auto px-6 py-3">
         <div className="flex items-center gap-2 overflow-x-auto">
+          <Button 
+            onClick={onAddProject} 
+            className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            New Project
+          </Button>
           {projects.map((project) => (
             <div key={project.id} className="flex items-center gap-1 flex-shrink-0">
               <Button
@@ -71,13 +78,6 @@ const ProjectTabs = ({
               </DropdownMenu>
             </div>
           ))}
-          <Button 
-            onClick={onAddProject} 
-            className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg z-50"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            New Project
-          </Button>
         </div>
       </div>
     </div>
