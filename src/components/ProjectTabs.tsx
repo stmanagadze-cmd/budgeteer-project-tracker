@@ -71,8 +71,12 @@ const ProjectTabs = ({
               </DropdownMenu>
             </div>
           ))}
-          <Button onClick={onAddProject} size="icon" variant="outline" className="flex-shrink-0">
-            <Plus className="h-4 w-4" />
+          <Button 
+            onClick={onAddProject} 
+            className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg z-50"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            New Project
           </Button>
         </div>
       </div>
