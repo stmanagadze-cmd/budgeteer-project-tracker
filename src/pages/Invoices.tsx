@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, LogOut } from "lucide-react";
 import { useInvoices } from "@/hooks/useInvoices";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useClients } from "@/hooks/useClients";
 import { Invoice } from "@/types/invoice";
+import { InvoiceFilters, InvoiceFiltersState } from "@/components/InvoiceFilters";
 import {
   Table,
   TableBody,
@@ -12,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
@@ -19,6 +23,15 @@ const Invoices = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
   const { invoices, loading } = useInvoices(userId);
+  const { companies } = useCompanies(userId);
+  const { clients } = useClients(userId);
+
+  const [filters, setFilters] = useState<InvoiceFiltersState>({
+    paymentStatus: [],
+    holdbackFilter: "all",
+    companyId: "all",
+    clientId: "all",
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -45,17 +58,83 @@ const Invoices = () => {
     navigate("/auth");
   };
 
+  // Filter invoices based on current filters
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((invoice) => {
+      // Payment Status filter
+      if (filters.paymentStatus.length > 0 && !filters.paymentStatus.includes(invoice.status)) {
+        return false;
+      }
+
+      // Holdback filter
+      if (filters.holdbackFilter !== "all") {
+        const hasHoldback = invoice.holdback_enabled && invoice.holdback_amount > 0;
+        
+        switch (filters.holdbackFilter) {
+          case "has_holdback":
+            if (!hasHoldback) return false;
+            break;
+          case "unpaid_holdback":
+            if (!hasHoldback || invoice.status === "fully_paid") return false;
+            break;
+          case "paid_holdback":
+            if (!hasHoldback || invoice.status !== "fully_paid") return false;
+            break;
+        }
+      }
+
+      // Company filter
+      if (filters.companyId !== "all" && invoice.company_id !== filters.companyId) {
+        return false;
+      }
+
+      // Client filter
+      if (filters.clientId !== "all" && invoice.client_id !== filters.clientId) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [invoices, filters]);
+
+  // Calculate summary totals for filtered invoices
+  const summaryTotals = useMemo(() => {
+    return filteredInvoices.reduce(
+      (acc, invoice) => {
+        acc.totalAmount += invoice.total_payable || 0;
+        acc.totalHoldbacks += invoice.holdback_enabled ? (invoice.holdback_amount || 0) : 0;
+        
+        if (invoice.status === "fully_paid") {
+          acc.paidAmount += invoice.total_payable || 0;
+        } else if (invoice.status === "holdback_remaining") {
+          acc.paidAmount += invoice.net_amount || 0;
+        }
+        
+        return acc;
+      },
+      { totalAmount: 0, totalHoldbacks: 0, paidAmount: 0 }
+    );
+  }, [filteredInvoices]);
+
   const getStatusBadge = (status: Invoice['status']) => {
-    const variants = {
-      draft: "secondary",
-      sent: "default",
-      paid: "outline",
+    const variants: Record<string, { variant: string; label: string }> = {
+      unpaid: { variant: "destructive", label: "Unpaid" },
+      paid_by_holdback: { variant: "secondary", label: "Paid (Holdback)" },
+      holdback_remaining: { variant: "outline", label: "Holdback Remaining" },
+      fully_paid: { variant: "default", label: "Fully Paid" },
+      draft: { variant: "secondary", label: "Draft" },
     };
+    
+    const config = variants[status] || { variant: "secondary", label: status };
     return (
-      <Badge variant={variants[status] as any}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <Badge variant={config.variant as any}>
+        {config.label}
       </Badge>
     );
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
   };
 
   if (loading) {
@@ -95,16 +174,31 @@ const Invoices = () => {
           </Button>
         </div>
 
-        {invoices.length === 0 ? (
+        {/* Filter Bar */}
+        <InvoiceFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          companies={companies}
+          clients={clients}
+        />
+
+        {filteredInvoices.length === 0 ? (
           <div className="text-center py-12 border border-border rounded-lg bg-card">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-medium mb-2">No invoices yet</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {invoices.length === 0 ? "No invoices yet" : "No invoices match your filters"}
+            </h3>
             <p className="text-muted-foreground mb-4">
-              Create your first invoice to get started
+              {invoices.length === 0 
+                ? "Create your first invoice to get started"
+                : "Try adjusting your filter criteria"
+              }
             </p>
-            <Button onClick={() => navigate("/invoices/new")}>
-              Create Invoice
-            </Button>
+            {invoices.length === 0 && (
+              <Button onClick={() => navigate("/invoices/new")}>
+                Create Invoice
+              </Button>
+            )}
           </div>
         ) : (
           <div className="border border-border rounded-lg overflow-hidden bg-card">
@@ -112,24 +206,37 @@ const Invoices = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Invoice #</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Holdback</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => (
+                {filteredInvoices.map((invoice) => (
                   <TableRow key={invoice.id}>
                     <TableCell className="font-medium">
                       {invoice.invoice_number}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {invoice.company_name || "-"}
                     </TableCell>
                     <TableCell>{invoice.client_name}</TableCell>
                     <TableCell>
                       {new Date(invoice.invoice_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>${invoice.total_payable.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(invoice.total_payable || 0)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {invoice.holdback_enabled 
+                        ? formatCurrency(invoice.holdback_amount || 0) 
+                        : "-"
+                      }
+                    </TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -143,6 +250,23 @@ const Invoices = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              <TableFooter>
+                <TableRow className="bg-muted/50">
+                  <TableCell colSpan={4} className="font-medium">
+                    Summary ({filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''})
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(summaryTotals.totalAmount)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium text-amber-600">
+                    {formatCurrency(summaryTotals.totalHoldbacks)}
+                  </TableCell>
+                  <TableCell className="font-medium text-green-600">
+                    Paid: {formatCurrency(summaryTotals.paidAmount)}
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableFooter>
             </Table>
           </div>
         )}
