@@ -1,6 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Users } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Users, FileText, CheckCircle, Clock } from "lucide-react";
 import { DashboardData } from "@/hooks/useDashboardData";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface DashboardMetricsProps {
   data: DashboardData;
@@ -75,7 +83,49 @@ export function DashboardMetrics({ data }: DashboardMetricsProps) {
         </Card>
       </div>
 
-      {/* Row 2: Holdbacks & Upcoming Revenue */}
+      {/* Row 2: Invoicing Overview */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Invoices Created</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.totalInvoicesCreated}</div>
+            <p className="text-xs text-muted-foreground">
+              All time
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Invoices Paid</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(data.totalInvoicesPaidValue)}</div>
+            <p className="text-xs text-muted-foreground">
+              Fully paid invoices
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Holdbacks Remaining</CardTitle>
+            <Clock className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{formatCurrency(data.totalHoldbacksRemaining)}</div>
+            <p className="text-xs text-muted-foreground">
+              Awaiting release
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 3: Holdbacks & Upcoming Revenue */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -116,6 +166,37 @@ export function DashboardMetrics({ data }: DashboardMetricsProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Row 4: Company Invoice Summary Table */}
+      {data.invoicesByCompany.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invoice Summary by Company</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Company Name</TableHead>
+                  <TableHead className="text-right">Total Invoiced</TableHead>
+                  <TableHead className="text-right">Total Paid (Income)</TableHead>
+                  <TableHead className="text-right">Outstanding Holdbacks</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.invoicesByCompany.map((company) => (
+                  <TableRow key={company.companyId}>
+                    <TableCell className="font-medium">{company.companyName}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(company.totalInvoiced)}</TableCell>
+                    <TableCell className="text-right text-green-600">{formatCurrency(company.totalPaid)}</TableCell>
+                    <TableCell className="text-right text-orange-600">{formatCurrency(company.outstandingHoldbacks)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }

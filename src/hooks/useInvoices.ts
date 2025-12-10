@@ -103,12 +103,20 @@ export const useInvoices = (userId?: string) => {
 
   const updateInvoice = async (id: string, updates: Partial<Invoice>) => {
     try {
+      // Get current invoice to check for status changes
+      const currentInvoice = invoices.find(inv => inv.id === id);
+      
       const { error } = await supabase
         .from("invoices")
         .update(updates)
         .eq("id", id);
 
       if (error) throw error;
+
+      // Handle automatic income creation based on status changes
+      if (updates.status && currentInvoice && updates.status !== currentInvoice.status) {
+        await handleInvoiceStatusChange(currentInvoice, updates.status, updates);
+      }
 
       toast({
         title: "Success",
@@ -121,6 +129,84 @@ export const useInvoices = (userId?: string) => {
         description: "Failed to update invoice",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleInvoiceStatusChange = async (
+    invoice: Invoice, 
+    newStatus: string,
+    updates: Partial<Invoice>
+  ) => {
+    try {
+      const oldStatus = invoice.status;
+      const companyId = updates.company_id ?? invoice.company_id;
+      const invoiceTotal = updates.total_payable ?? invoice.total_payable ?? 0;
+      const holdbackAmount = updates.holdback_amount ?? invoice.holdback_amount ?? 0;
+      const netAmount = updates.net_amount ?? invoice.net_amount ?? 0;
+      const holdbackEnabled = updates.holdback_enabled ?? invoice.holdback_enabled;
+
+      // Scenario A: Standard Paid (no holdback) - add full amount
+      if (newStatus === 'fully_paid' && !holdbackEnabled) {
+        await createIncomeFromInvoice(
+          invoiceTotal,
+          companyId,
+          `Invoice ${invoice.invoice_number} - Full Payment`
+        );
+      }
+      
+      // Scenario B: Holdback Remaining - add net amount (total - holdback)
+      else if (newStatus === 'holdback_remaining' && oldStatus === 'unpaid') {
+        await createIncomeFromInvoice(
+          netAmount,
+          companyId,
+          `Invoice ${invoice.invoice_number} - Partial Payment (Holdback Retained)`
+        );
+      }
+      
+      // Scenario C: Fully Paid after Holdback - add the holdback amount
+      else if (newStatus === 'fully_paid' && oldStatus === 'holdback_remaining') {
+        await createIncomeFromInvoice(
+          holdbackAmount,
+          companyId,
+          `Invoice ${invoice.invoice_number} - Holdback Released`
+        );
+      }
+      
+      // Scenario: Direct fully paid with holdback (from unpaid) - add full amount
+      else if (newStatus === 'fully_paid' && holdbackEnabled && oldStatus === 'unpaid') {
+        await createIncomeFromInvoice(
+          invoiceTotal,
+          companyId,
+          `Invoice ${invoice.invoice_number} - Full Payment (Including Holdback)`
+        );
+      }
+    } catch (error) {
+      console.error("Error handling invoice status change:", error);
+    }
+  };
+
+  const createIncomeFromInvoice = async (
+    amount: number,
+    companyId: string | undefined,
+    description: string
+  ) => {
+    if (amount <= 0) return;
+    
+    try {
+      const { error } = await supabase
+        .from("income")
+        .insert([{
+          user_id: userId,
+          amount,
+          company_id: companyId,
+          description,
+          income_date: new Date().toISOString().split('T')[0],
+        }]);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error creating income from invoice:", error);
+      throw error;
     }
   };
 
