@@ -2,12 +2,18 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, LogOut } from "lucide-react";
+import { Plus, FileText, LogOut, Filter, X } from "lucide-react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useClients } from "@/hooks/useClients";
 import { Invoice } from "@/types/invoice";
-import { InvoiceFilters, InvoiceFiltersState } from "@/components/InvoiceFilters";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -19,6 +25,20 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
+const PAYMENT_STATUS_OPTIONS = [
+  { value: "unpaid", label: "Unpaid" },
+  { value: "paid_by_holdback", label: "Paid (Holdback)" },
+  { value: "holdback_remaining", label: "Holdback Remaining" },
+  { value: "fully_paid", label: "Fully Paid" },
+];
+
+const HOLDBACK_FILTER_OPTIONS = [
+  { value: "all", label: "All Invoices" },
+  { value: "has_holdback", label: "Has Holdback" },
+  { value: "unpaid_holdback", label: "Unpaid Holdbacks" },
+  { value: "paid_holdback", label: "Paid Holdbacks" },
+];
+
 const Invoices = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
@@ -26,12 +46,11 @@ const Invoices = () => {
   const { companies } = useCompanies(userId);
   const { clients } = useClients(userId);
 
-  const [filters, setFilters] = useState<InvoiceFiltersState>({
-    paymentStatus: [],
-    holdbackFilter: "all",
-    companyId: "all",
-    clientId: "all",
-  });
+  // Filter state
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>([]);
+  const [holdbackFilter, setHoldbackFilter] = useState("all");
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -58,19 +77,43 @@ const Invoices = () => {
     navigate("/auth");
   };
 
-  // Filter invoices based on current filters
+  const togglePaymentStatus = (status: string) => {
+    setPaymentStatusFilter(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status) 
+        : [...prev, status]
+    );
+  };
+
+  const clearAllFilters = () => {
+    setPaymentStatusFilter([]);
+    setHoldbackFilter("all");
+    setCompanyFilter("all");
+    setClientFilter("all");
+  };
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (paymentStatusFilter.length > 0) count++;
+    if (holdbackFilter !== "all") count++;
+    if (companyFilter !== "all") count++;
+    if (clientFilter !== "all") count++;
+    return count;
+  }, [paymentStatusFilter, holdbackFilter, companyFilter, clientFilter]);
+
+  // Filter invoices
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
       // Payment Status filter
-      if (filters.paymentStatus.length > 0 && !filters.paymentStatus.includes(invoice.status)) {
+      if (paymentStatusFilter.length > 0 && !paymentStatusFilter.includes(invoice.status)) {
         return false;
       }
 
       // Holdback filter
-      if (filters.holdbackFilter !== "all") {
-        const hasHoldback = invoice.holdback_enabled && invoice.holdback_amount > 0;
+      if (holdbackFilter !== "all") {
+        const hasHoldback = invoice.holdback_enabled && (invoice.holdback_amount || 0) > 0;
         
-        switch (filters.holdbackFilter) {
+        switch (holdbackFilter) {
           case "has_holdback":
             if (!hasHoldback) return false;
             break;
@@ -84,20 +127,20 @@ const Invoices = () => {
       }
 
       // Company filter
-      if (filters.companyId !== "all" && invoice.company_id !== filters.companyId) {
+      if (companyFilter !== "all" && invoice.company_id !== companyFilter) {
         return false;
       }
 
       // Client filter
-      if (filters.clientId !== "all" && invoice.client_id !== filters.clientId) {
+      if (clientFilter !== "all" && invoice.client_id !== clientFilter) {
         return false;
       }
 
       return true;
     });
-  }, [invoices, filters]);
+  }, [invoices, paymentStatusFilter, holdbackFilter, companyFilter, clientFilter]);
 
-  // Calculate summary totals for filtered invoices
+  // Calculate summary totals
   const summaryTotals = useMemo(() => {
     return filteredInvoices.reduce(
       (acc, invoice) => {
@@ -155,7 +198,7 @@ const Invoices = () => {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/")}>
-              Back to Projects
+              Back to Dashboard
             </Button>
             <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
               <LogOut className="h-4 w-4" />
@@ -175,17 +218,103 @@ const Invoices = () => {
         </div>
 
         {/* Filter Bar */}
-        <InvoiceFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          companies={companies}
-          clients={clients}
-        />
+        <div className="bg-card border border-border rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium text-sm text-foreground">Filters</span>
+              {activeFilterCount > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {activeFilterCount} active
+                </Badge>
+              )}
+            </div>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 gap-1">
+                <X className="h-3 w-3" />
+                Clear All
+              </Button>
+            )}
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Payment Status */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Payment Status</label>
+              <div className="flex flex-wrap gap-1">
+                {PAYMENT_STATUS_OPTIONS.map((option) => (
+                  <Badge
+                    key={option.value}
+                    variant={paymentStatusFilter.includes(option.value) ? "default" : "outline"}
+                    className="cursor-pointer text-xs hover:opacity-80"
+                    onClick={() => togglePaymentStatus(option.value)}
+                  >
+                    {option.label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Holdback Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Holdback Filter</label>
+              <Select value={holdbackFilter} onValueChange={setHoldbackFilter}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="All Invoices" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {HOLDBACK_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Company Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Company</label>
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="All Companies" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Client Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Client</label>
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Table */}
         {filteredInvoices.length === 0 ? (
           <div className="text-center py-12 border border-border rounded-lg bg-card">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-medium mb-2">
+            <h3 className="text-lg font-medium mb-2 text-foreground">
               {invoices.length === 0 ? "No invoices yet" : "No invoices match your filters"}
             </h3>
             <p className="text-muted-foreground mb-4">
