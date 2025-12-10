@@ -6,6 +6,14 @@ import { Client } from "@/types/client";
 import { Expense } from "@/types/expense";
 import { Income } from "@/types/income";
 
+export interface InvoicesByCompany {
+  companyName: string;
+  companyId: string;
+  totalInvoiced: number;
+  totalPaid: number;
+  outstandingHoldbacks: number;
+}
+
 export interface DashboardData {
   totalIncome: number;
   totalExpenses: number;
@@ -18,6 +26,11 @@ export interface DashboardData {
   incomeByMonth: { month: string; income: number; expenses: number }[];
   incomeByCompany: { company: string; value: number }[];
   expensesByMonth: { month: string; total: number }[];
+  // New invoice stats
+  totalInvoicesCreated: number;
+  totalInvoicesPaidValue: number;
+  totalHoldbacksRemaining: number;
+  invoicesByCompany: InvoicesByCompany[];
 }
 
 export const useDashboardData = (userId?: string, selectedCompanyIds: string[] = []) => {
@@ -215,6 +228,54 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
       value,
     }));
 
+    // New invoice stats
+    const totalInvoicesCreated = filteredInvoices.length;
+    
+    // Total value of fully paid invoices
+    const fullyPaidInvoices = filteredInvoices.filter(inv => inv.status === 'fully_paid');
+    const totalInvoicesPaidValue = fullyPaidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+    
+    // Total holdbacks remaining (only from holdback_remaining status invoices)
+    const holdbackRemainingInvoices = filteredInvoices.filter(inv => inv.status === 'holdback_remaining');
+    const totalHoldbacksRemaining = holdbackRemainingInvoices.reduce((sum, inv) => sum + (inv.holdback_amount || 0), 0);
+    
+    // Invoices breakdown by company
+    const invoicesByCompanyMap = new Map<string, { 
+      companyName: string;
+      companyId: string;
+      totalInvoiced: number; 
+      totalPaid: number; 
+      outstandingHoldbacks: number;
+    }>();
+    
+    filteredInvoices.forEach(inv => {
+      const companyId = inv.company_id || 'unknown';
+      const company = companies.find(c => c.id === inv.company_id);
+      const companyName = company?.name || inv.company_name || 'Unknown';
+      
+      if (!invoicesByCompanyMap.has(companyId)) {
+        invoicesByCompanyMap.set(companyId, {
+          companyName,
+          companyId,
+          totalInvoiced: 0,
+          totalPaid: 0,
+          outstandingHoldbacks: 0,
+        });
+      }
+      
+      const entry = invoicesByCompanyMap.get(companyId)!;
+      entry.totalInvoiced += inv.total_payable || 0;
+      
+      if (inv.status === 'fully_paid') {
+        entry.totalPaid += inv.total_payable || 0;
+      } else if (inv.status === 'holdback_remaining') {
+        entry.totalPaid += inv.net_amount || 0;
+        entry.outstandingHoldbacks += inv.holdback_amount || 0;
+      }
+    });
+    
+    const invoicesByCompany = Array.from(invoicesByCompanyMap.values());
+
     return {
       totalIncome,
       totalExpenses,
@@ -227,6 +288,10 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
       incomeByMonth,
       incomeByCompany,
       expensesByMonth,
+      totalInvoicesCreated,
+      totalInvoicesPaidValue,
+      totalHoldbacksRemaining,
+      invoicesByCompany,
     };
   }, [invoices, companies, expenses, manualIncome, selectedCompanyIds]);
 
