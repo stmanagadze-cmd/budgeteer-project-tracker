@@ -86,6 +86,47 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          base_salary: number
+          company_id: string | null
+          created_at: string
+          id: string
+          name: string
+          role: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          base_salary?: number
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          role?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          base_salary?: number
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          role?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           color: string | null
@@ -180,6 +221,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      income: {
+        Row: {
+          amount: number
+          category_id: string | null
+          company_id: string | null
+          created_at: string
+          description: string
+          id: string
+          income_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          category_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          income_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          income_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "income_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "income_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "income_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      income_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       invoice_attachments: {
         Row: {
@@ -416,6 +538,67 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      salary_payments: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          employee_id: string
+          expense_id: string | null
+          id: string
+          notes: string | null
+          payment_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          company_id: string
+          created_at?: string
+          employee_id: string
+          expense_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          employee_id?: string
+          expense_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_payments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_payments_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       work_periods: {
         Row: {

@@ -4,12 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useIncomeCategories } from "@/hooks/useIncomeCategories";
+import { useIncome } from "@/hooks/useIncome";
 import { CompanyFilter } from "@/components/CompanyFilter";
 import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { DashboardCharts } from "@/components/DashboardCharts";
 import { ExpenseBreakdown } from "@/components/ExpenseBreakdown";
 import { ManageCategoriesDialog } from "@/components/ManageCategoriesDialog";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { ManageIncomeCategoriesDialog } from "@/components/ManageIncomeCategoriesDialog";
+import { AddIncomeDialog } from "@/components/AddIncomeDialog";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -21,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Settings, Plus } from "lucide-react";
+import { Settings, Plus, TrendingUp, TrendingDown } from "lucide-react";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -29,6 +33,8 @@ const Dashboard = () => {
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [categoriesDialogOpen, setCategoriesDialogOpen] = useState(false);
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
+  const [incomeCategoriesDialogOpen, setIncomeCategoriesDialogOpen] = useState(false);
+  const [addIncomeDialogOpen, setAddIncomeDialogOpen] = useState(false);
   
   const { companies, dashboardData, loading } = useDashboardData(userId, selectedCompanyIds);
   const { 
@@ -39,6 +45,13 @@ const Dashboard = () => {
     deleteCategory 
   } = useExpenseCategories(userId);
   const { expenses, createExpense } = useExpenses(userId, selectedCompanyIds);
+  const {
+    categories: incomeCategories,
+    createCategory: createIncomeCategory,
+    updateCategory: updateIncomeCategory,
+    deleteCategory: deleteIncomeCategory,
+  } = useIncomeCategories(userId);
+  const { createIncome } = useIncome(userId, selectedCompanyIds);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -113,14 +126,30 @@ const Dashboard = () => {
                 onClick={() => setCategoriesDialogOpen(true)}
               >
                 <Settings className="h-4 w-4 mr-2" />
-                Manage Categories
+                Expense Categories
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIncomeCategoriesDialogOpen(true)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Income Categories
+              </Button>
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setAddExpenseDialogOpen(true)}
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <TrendingDown className="h-4 w-4 mr-2" />
                 Add Expense
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setAddIncomeDialogOpen(true)}
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Add Income
               </Button>
               <CompanyFilter
                 companies={companies}
@@ -212,6 +241,23 @@ const Dashboard = () => {
         categories={categories}
         companies={companies}
         onCreateExpense={createExpense}
+      />
+
+      <ManageIncomeCategoriesDialog
+        open={incomeCategoriesDialogOpen}
+        onOpenChange={setIncomeCategoriesDialogOpen}
+        categories={incomeCategories}
+        onCreateCategory={createIncomeCategory}
+        onUpdateCategory={updateIncomeCategory}
+        onDeleteCategory={deleteIncomeCategory}
+      />
+
+      <AddIncomeDialog
+        open={addIncomeDialogOpen}
+        onOpenChange={setAddIncomeDialogOpen}
+        categories={incomeCategories}
+        companies={companies}
+        onCreateIncome={createIncome}
       />
     </div>
   );
