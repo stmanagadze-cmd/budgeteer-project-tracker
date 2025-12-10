@@ -137,10 +137,10 @@ const Invoices = () => {
     return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
   };
 
-  if (loading) {
+  if (!userId || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        Loading...
+        <div className="text-muted-foreground">Loading invoices...</div>
       </div>
     );
   }
