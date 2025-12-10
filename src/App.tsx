@@ -10,6 +10,7 @@ import NewInvoiceEditor from "./pages/NewInvoiceEditor";
 import Companies from "./pages/Companies";
 import Clients from "./pages/Clients";
 import Dashboard from "./pages/Dashboard";
+import Salaries from "./pages/Salaries";
 import NotFound from "./pages/NotFound";
 import { InvoiceLayout } from "./components/InvoiceLayout";
 
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/invoices" element={<InvoiceLayout><NewInvoices /></InvoiceLayout>} />
           <Route path="/invoices/new" element={<InvoiceLayout><NewInvoiceEditor /></InvoiceLayout>} />
           <Route path="/invoices/:id" element={<InvoiceLayout><NewInvoiceEditor /></InvoiceLayout>} />
+          <Route path="/salaries" element={<InvoiceLayout><Salaries /></InvoiceLayout>} />
           <Route path="/companies" element={<InvoiceLayout><Companies /></InvoiceLayout>} />
           <Route path="/clients" element={<InvoiceLayout><Clients /></InvoiceLayout>} />
           <Route path="*" element={<NotFound />} />
