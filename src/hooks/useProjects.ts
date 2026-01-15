@@ -230,7 +230,29 @@ export const useProjects = (userId: string | undefined) => {
     try {
       const validatedPeriod = workPeriodSchema.parse(period);
 
-      const { error } = await supabase.from("work_periods").insert({
+      // Generate temp ID for optimistic update
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const newPeriod: WorkPeriod = {
+        id: tempId,
+        date: validatedPeriod.date,
+        teamSize: validatedPeriod.teamSize,
+        daysWorked: validatedPeriod.daysWorked,
+        hoursPerDay: validatedPeriod.hoursPerDay,
+        workType: validatedPeriod.workType,
+        location: validatedPeriod.location,
+        totalHours: validatedPeriod.totalHours,
+        periodCost: validatedPeriod.periodCost,
+        images: validatedPeriod.images || [],
+      };
+
+      // Optimistic update - use functional state to avoid stale closures
+      setProjects(prev => prev.map(p => 
+        p.id === projectId 
+          ? { ...p, workPeriods: [...p.workPeriods, newPeriod] }
+          : p
+      ));
+
+      const { data, error } = await supabase.from("work_periods").insert({
         project_id: projectId,
         date: validatedPeriod.date,
         team_size: validatedPeriod.teamSize,
@@ -241,9 +263,27 @@ export const useProjects = (userId: string | undefined) => {
         total_hours: validatedPeriod.totalHours,
         period_cost: validatedPeriod.periodCost,
         images: validatedPeriod.images || [],
-      });
+      }).select().single();
 
-      if (error) throw error;
+      if (error) {
+        // Rollback on error
+        setProjects(prev => prev.map(p => 
+          p.id === projectId 
+            ? { ...p, workPeriods: p.workPeriods.filter(wp => wp.id !== tempId) }
+            : p
+        ));
+        throw error;
+      }
+
+      // Replace temp ID with real ID
+      setProjects(prev => prev.map(p => 
+        p.id === projectId 
+          ? { ...p, workPeriods: p.workPeriods.map(wp => 
+              wp.id === tempId ? { ...wp, id: data.id } : wp
+            )}
+          : p
+      ));
+
       toast({ title: "Period added", description: "Work period has been added." });
     } catch (error: any) {
       const message = error instanceof ZodError ? error.errors[0].message : error.message;

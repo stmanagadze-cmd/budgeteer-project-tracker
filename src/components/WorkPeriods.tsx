@@ -1,10 +1,10 @@
-import { useState, useRef, useMemo, memo } from "react";
+import { useState, useRef, useMemo, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Trash2, Edit, Upload, X, ArrowUpDown } from "lucide-react";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
@@ -173,16 +173,22 @@ const WorkPeriods = ({
   
   const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
 
-  const parseDate = (dateStr: string) => {
+  // Memoize date parsing to avoid recalculating on every render
+  const parseDate = useCallback((dateStr: string) => {
     const [year, month, day] = dateStr.split("-");
     return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-  };
+  }, []);
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = useCallback((dateStr: string) => {
     return parseDate(dateStr).toLocaleDateString();
-  };
+  }, [parseDate]);
 
   const sortedWorkPeriods = useMemo(() => {
+    // Early exit if no periods to avoid unnecessary work
+    if (!project.workPeriods || project.workPeriods.length === 0) {
+      return [];
+    }
+    
     const periods = [...project.workPeriods];
     
     switch (sortBy) {
@@ -195,15 +201,27 @@ const WorkPeriods = ({
       default:
         return periods;
     }
-  }, [project.workPeriods, sortBy]);
+  }, [project.workPeriods, sortBy, parseDate]);
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  // Memoize the add submit handler to prevent unnecessary re-renders
+  const handleAddSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    const totalHours = addFormData.teamSize * addFormData.daysWorked * addFormData.hoursPerDay;
+    
+    // Calculate values locally - no external dependencies that could cause loops
+    const teamSize = addFormData.teamSize;
+    const daysWorked = addFormData.daysWorked;
+    const hoursPerDay = addFormData.hoursPerDay;
+    const totalHours = teamSize * daysWorked * hoursPerDay;
     const periodCost = totalHours * project.hourlySalary;
 
+    // Call parent handler with calculated period
     onAddPeriod({
-      ...addFormData,
+      date: addFormData.date,
+      teamSize,
+      daysWorked,
+      hoursPerDay,
+      workType: addFormData.workType,
+      location: addFormData.location,
       totalHours,
       periodCost,
       images: [],
@@ -214,7 +232,7 @@ const WorkPeriods = ({
       description: `Added ${totalHours} hours to the project.`,
     });
 
-    // Reset add form
+    // Reset add form with fresh values
     setAddFormData({
       date: new Date().toISOString().split("T")[0],
       teamSize: 1,
@@ -223,15 +241,15 @@ const WorkPeriods = ({
       workType: "Development",
       location: "Office",
     });
-  };
+  }, [addFormData, project.hourlySalary, onAddPeriod, toast]);
 
 
-  const handleEdit = (period: WorkPeriod) => {
+  const handleEdit = useCallback((period: WorkPeriod) => {
     setEditingPeriod(period);
     setDialogOpen(true);
-  };
+  }, []);
 
-  const handleImageUpload = async (periodId: string, files: FileList | null) => {
+  const handleImageUpload = useCallback(async (periodId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     const period = project.workPeriods.find(p => p.id === periodId);
@@ -274,9 +292,9 @@ const WorkPeriods = ({
         fileInputRef.current.value = '';
       }
     }
-  };
+  }, [project.workPeriods, onUploadImage, onUpdatePeriod, toast]);
 
-  const handleRemoveImage = async (periodId: string, imageUrl: string) => {
+  const handleRemoveImage = useCallback(async (periodId: string, imageUrl: string) => {
     const period = project.workPeriods.find(p => p.id === periodId);
     if (!period) return;
 
@@ -288,7 +306,7 @@ const WorkPeriods = ({
       title: "Image removed",
       description: "Image has been removed successfully.",
     });
-  };
+  }, [project.workPeriods, onDeleteImage, onUpdatePeriod, toast]);
 
   return (
     <Card>
