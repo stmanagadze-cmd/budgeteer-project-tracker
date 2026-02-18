@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      change_orders: {
+        Row: {
+          amount: number
+          contract_id: string
+          created_at: string
+          description: string
+          id: string
+        }
+        Insert: {
+          amount?: number
+          contract_id: string
+          created_at?: string
+          description: string
+          id?: string
+        }
+        Update: {
+          amount?: number
+          contract_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_orders_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
@@ -85,6 +117,98 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      contract_documents: {
+        Row: {
+          contract_id: string
+          created_at: string
+          description: string | null
+          file_name: string
+          file_path: string
+          file_type: string
+          id: string
+        }
+        Insert: {
+          contract_id: string
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_path: string
+          file_type: string
+          id?: string
+        }
+        Update: {
+          contract_id?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_path?: string
+          file_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_documents_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contracts: {
+        Row: {
+          client_id: string | null
+          company_id: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          original_amount: number
+          project_title: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          original_amount?: number
+          project_title: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          original_amount?: number
+          project_title?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       employees: {
         Row: {
