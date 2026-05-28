@@ -13,27 +13,36 @@ export const useProjects = (userId: string | undefined) => {
 
   const fetchProjects = useCallback(async () => {
     if (!userId) return;
-    
+
     try {
-      // Batch fetch projects (sorted by created_at desc) and work periods in parallel
-      const [projectsRes, periodsRes] = await Promise.all([
-        supabase.from("projects").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-        supabase.from("work_periods").select("*")
-      ]);
+      // Step 1: fetch only this user's projects
+      const { data: projectsData, error: projectsErr } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
-      if (projectsRes.error) throw projectsRes.error;
+      if (projectsErr) throw projectsErr;
 
-      const projectsData = projectsRes.data || [];
-      const projectIds = new Set(projectsData.map(p => p.id));
-      
-      // Filter periods in memory (faster than multiple DB calls)
-      const periodsData = (periodsRes.data || []).filter(wp => projectIds.has(wp.project_id));
+      const ownedProjects = projectsData || [];
+      const projectIds = ownedProjects.map((p) => p.id);
 
-      // Build projects map for O(1) lookup
+      // Step 2: fetch work periods scoped to those project ids
+      let periodsData: any[] = [];
+      if (projectIds.length > 0) {
+        const { data: wpData, error: wpErr } = await supabase
+          .from("work_periods")
+          .select("*")
+          .in("project_id", projectIds);
+
+        if (wpErr) throw wpErr;
+        periodsData = wpData || [];
+      }
+
       const periodsMap = new Map<string, WorkPeriod[]>();
-      periodsData.forEach(wp => {
-        const projectPeriods = periodsMap.get(wp.project_id) || [];
-        projectPeriods.push({
+      periodsData.forEach((wp) => {
+        const list = periodsMap.get(wp.project_id) || [];
+        list.push({
           id: wp.id,
           date: wp.date,
           teamSize: wp.team_size,
@@ -45,11 +54,10 @@ export const useProjects = (userId: string | undefined) => {
           periodCost: Number(wp.period_cost),
           images: wp.images || [],
         });
-        periodsMap.set(wp.project_id, projectPeriods);
+        periodsMap.set(wp.project_id, list);
       });
 
-      // Projects already sorted by created_at desc from DB
-      const projectsWithPeriods: Project[] = projectsData.map(p => ({
+      const projectsWithPeriods: Project[] = ownedProjects.map((p) => ({
         id: p.id,
         name: p.name,
         hourlySalary: Number(p.hourly_salary),
