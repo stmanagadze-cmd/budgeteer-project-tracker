@@ -166,7 +166,7 @@ export const useProjects = (userId: string | undefined) => {
         p.id === id ? { ...p, ...validatedUpdates } : p
       ));
 
-      const { error } = await supabase.from("projects").update(updateData).eq("id", id);
+      const { error } = await supabase.from("projects").update(updateData as any).eq("id", id);
 
       if (error) {
         setProjects(oldProjects);
