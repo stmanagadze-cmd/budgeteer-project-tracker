@@ -410,9 +410,9 @@ serve(async (req) => {
       );
     }
 
-    if (project.targetBudget < 0 || project.targetBudget > 10000000) {
+    if (project.targetBudget <= 0 || project.targetBudget > 10000000) {
       return new Response(
-        JSON.stringify({ error: 'Invalid target budget value' }),
+        JSON.stringify({ error: 'Target budget must be greater than zero and within allowed range' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
