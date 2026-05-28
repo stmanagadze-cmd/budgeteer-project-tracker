@@ -334,13 +334,14 @@ export const useProjects = (userId: string | undefined) => {
         .eq("id", periodId)
         .maybeSingle();
 
-      // Delete images from storage in batch
+      // Delete images from storage in batch (normalize legacy paths)
       if (period?.images?.length) {
-        const imagePaths = period.images.map((url: string) => {
-          const urlParts = url.split('/');
-          return `${periodId}/${urlParts[urlParts.length - 1]}`;
-        });
-        await supabase.storage.from("work-period-images").remove(imagePaths);
+        const imagePaths = period.images
+          .map((url: string) => getWorkPeriodImageObjectPath(url))
+          .filter(Boolean);
+        if (imagePaths.length) {
+          await supabase.storage.from("work-period-images").remove(imagePaths);
+        }
       }
 
       const { error } = await supabase.from("work_periods").delete().eq("id", periodId);
