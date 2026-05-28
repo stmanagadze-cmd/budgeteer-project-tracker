@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { workPeriodSchema, projectSchema } from "@/lib/validation";
+import { getWorkPeriodImageObjectPath } from "@/hooks/useImageSigner";
 import { ZodError } from "zod";
 
 export const useProjects = (userId: string | undefined) => {
