@@ -55,7 +55,7 @@ export const useIncome = (userId?: string, selectedCompanyIds: string[] = []) =>
     try {
       const { data, error } = await supabase
         .from("income")
-        .insert({ ...incomeData, user_id: userId })
+        .insert({ ...incomeData, user_id: userId } as any)
         .select()
         .single();
 
