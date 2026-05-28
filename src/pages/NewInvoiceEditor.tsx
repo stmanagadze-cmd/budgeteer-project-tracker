@@ -21,7 +21,7 @@ export default function NewInvoiceEditor() {
   const [userId, setUserId] = useState<string | null>(null);
   
   const { companies } = useCompanies(userId || undefined);
-  const { clients, incrementInvoiceNumber } = useClients(userId || undefined);
+  const { clients, reserveNextInvoiceNumber } = useClients(userId || undefined);
 
   const [formData, setFormData] = useState({
     company_id: "",
