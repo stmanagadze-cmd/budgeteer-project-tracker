@@ -418,7 +418,7 @@ serve(async (req) => {
     }
 
     // Validate work periods
-    for (const period of project.workPeriods) {
+    for (const period of (Array.isArray(project.workPeriods) ? project.workPeriods : [])) {
       if (period.teamSize < 1 || period.teamSize > 1000) {
         return new Response(
           JSON.stringify({ error: 'Invalid team size in work period' }),
