@@ -782,7 +782,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      replace_invoice_line_items: {
+        Args: { p_invoice_id: string; p_items: Json }
+        Returns: undefined
+      }
+      reserve_next_invoice_number: {
+        Args: { p_client_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
