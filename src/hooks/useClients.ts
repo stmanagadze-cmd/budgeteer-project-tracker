@@ -134,6 +134,6 @@ export function useClients(userId?: string) {
     createClient,
     updateClient,
     deleteClient,
-    incrementInvoiceNumber,
+    reserveNextInvoiceNumber,
   };
 }
