@@ -353,15 +353,20 @@ export const useProjects = (userId: string | undefined) => {
 
   const uploadWorkPeriodImage = useCallback(async (workPeriodId: string, file: File): Promise<string | null> => {
     try {
-      const fileExt = file.name.split('.').pop()?.toLowerCase();
-      const validExtensions = ['png', 'jpg', 'jpeg'];
-      
-      if (!fileExt || !validExtensions.includes(fileExt)) {
-        throw new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed.');
+      const allowedMime: Record<string, string> = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+      };
+      const ext = allowedMime[file.type];
+      if (!ext) {
+        throw new Error('Invalid file type. Only PNG and JPEG images are allowed.');
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image is too large. Maximum size is 5 MB.');
       }
 
       const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-      const filePath = `${workPeriodId}/${uniqueId}.${fileExt}`;
+      const filePath = `${workPeriodId}/${uniqueId}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('work-period-images')
