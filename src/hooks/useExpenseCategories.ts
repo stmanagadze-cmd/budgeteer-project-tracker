@@ -56,7 +56,7 @@ export const useExpenseCategories = (userId?: string) => {
     try {
       const { error } = await supabase
         .from("expense_categories")
-        .update(updates)
+        .update(updates as any)
         .eq("id", id);
 
       if (error) throw error;
