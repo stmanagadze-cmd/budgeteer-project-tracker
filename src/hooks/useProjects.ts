@@ -409,12 +409,31 @@ export const useProjects = (userId: string | undefined) => {
 
   const deleteWorkPeriodImage = useCallback(async (periodId: string, imageUrl: string) => {
     try {
-      const urlParts = imageUrl.split('/');
-      const fileName = urlParts[urlParts.length - 1];
-      const filePath = `${periodId}/${fileName}`;
+      const filePath = getWorkPeriodImageObjectPath(imageUrl);
+      if (!filePath) return;
 
       const { error } = await supabase.storage.from("work-period-images").remove([filePath]);
       if (error) throw error;
+
+      // Update DB: strip this image from the work_period
+      const { data: wp } = await supabase
+        .from('work_periods')
+        .select('images')
+        .eq('id', periodId)
+        .maybeSingle();
+
+      const remaining = (wp?.images || []).filter(
+        (img: string) => getWorkPeriodImageObjectPath(img) !== filePath
+      );
+
+      await supabase.from('work_periods').update({ images: remaining }).eq('id', periodId);
+
+      setProjects(prev => prev.map(project => ({
+        ...project,
+        workPeriods: project.workPeriods.map(period =>
+          period.id === periodId ? { ...period, images: remaining } : period
+        )
+      })));
     } catch (error: any) {
       toast({ title: "Error deleting image", description: error.message, variant: "destructive" });
     }
