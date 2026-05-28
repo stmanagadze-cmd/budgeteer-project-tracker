@@ -48,18 +48,22 @@ interface VisibleCards {
 }
 
 function generateHTMLReport(project: Project, visibleCards: VisibleCards): string {
-  const totalHours = project.workPeriods.reduce((sum, p) => sum + p.totalHours, 0);
-  const totalCost = project.workPeriods.reduce((sum, p) => sum + p.periodCost, 0);
-  const remaining = project.targetBudget - totalCost;
-  const progress = (totalCost / project.targetBudget) * 100;
+  const workPeriods = Array.isArray(project.workPeriods) ? project.workPeriods : [];
+  const totalHours = workPeriods.reduce((sum, p) => sum + (Number(p.totalHours) || 0), 0);
+  const totalCost = workPeriods.reduce((sum, p) => sum + (Number(p.periodCost) || 0), 0);
+  const targetBudget = Number(project.targetBudget) || 0;
+  const remaining = targetBudget - totalCost;
+  const progress = targetBudget > 0 ? (totalCost / targetBudget) * 100 : 0;
 
   // Sanitize all user-provided strings to prevent XSS
-  const safeName = escapeHtml(project.name);
-  
-  const periodsHTML = project.workPeriods.map((period, index) => {
-    // Format date without timezone conversion (YYYY-MM-DD -> MM/DD/YYYY or localized format)
-    const [year, month, day] = period.date.split('-');
-    const displayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString();
+  const safeName = escapeHtml(project.name || '');
+
+  const periodsHTML = workPeriods.map((period, index) => {
+    // Format date without timezone conversion
+    const [year, month, day] = (period.date || '').split('-');
+    const displayDate = (year && month && day)
+      ? new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString()
+      : '';
     
     return `
     <div class="period">
