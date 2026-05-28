@@ -134,7 +134,11 @@ export const useEmployees = (userId?: string) => {
       const { data, error } = await supabase
         .from("salary_payments")
         .insert({
-          ...payment,
+          employee_id: payment.employee_id,
+          company_id: payment.company_id,
+          amount: payment.amount,
+          payment_date: payment.payment_date,
+          notes: payment.notes,
           user_id: userId,
           expense_id: expenseData.id,
         })
