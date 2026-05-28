@@ -98,7 +98,7 @@ function generateHTMLReport(project: Project, visibleCards: VisibleCards): strin
     <html>
     <head>
       <meta charset="utf-8">
-      <title>${project.name} - Budget Report</title>
+      <title>${safeName} - Budget Report</title>
       <style>
         * {
           margin: 0;
