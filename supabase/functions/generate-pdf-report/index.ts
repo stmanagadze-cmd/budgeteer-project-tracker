@@ -48,18 +48,22 @@ interface VisibleCards {
 }
 
 function generateHTMLReport(project: Project, visibleCards: VisibleCards): string {
-  const totalHours = project.workPeriods.reduce((sum, p) => sum + p.totalHours, 0);
-  const totalCost = project.workPeriods.reduce((sum, p) => sum + p.periodCost, 0);
-  const remaining = project.targetBudget - totalCost;
-  const progress = (totalCost / project.targetBudget) * 100;
+  const workPeriods = Array.isArray(project.workPeriods) ? project.workPeriods : [];
+  const totalHours = workPeriods.reduce((sum, p) => sum + (Number(p.totalHours) || 0), 0);
+  const totalCost = workPeriods.reduce((sum, p) => sum + (Number(p.periodCost) || 0), 0);
+  const targetBudget = Number(project.targetBudget) || 0;
+  const remaining = targetBudget - totalCost;
+  const progress = targetBudget > 0 ? (totalCost / targetBudget) * 100 : 0;
 
   // Sanitize all user-provided strings to prevent XSS
-  const safeName = escapeHtml(project.name);
-  
-  const periodsHTML = project.workPeriods.map((period, index) => {
-    // Format date without timezone conversion (YYYY-MM-DD -> MM/DD/YYYY or localized format)
-    const [year, month, day] = period.date.split('-');
-    const displayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString();
+  const safeName = escapeHtml(project.name || '');
+
+  const periodsHTML = workPeriods.map((period, index) => {
+    // Format date without timezone conversion
+    const [year, month, day] = (period.date || '').split('-');
+    const displayDate = (year && month && day)
+      ? new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString()
+      : '';
     
     return `
     <div class="period">
@@ -94,7 +98,7 @@ function generateHTMLReport(project: Project, visibleCards: VisibleCards): strin
     <html>
     <head>
       <meta charset="utf-8">
-      <title>${project.name} - Budget Report</title>
+      <title>${safeName} - Budget Report</title>
       <style>
         * {
           margin: 0;
@@ -406,15 +410,15 @@ serve(async (req) => {
       );
     }
 
-    if (project.targetBudget < 0 || project.targetBudget > 10000000) {
+    if (project.targetBudget <= 0 || project.targetBudget > 10000000) {
       return new Response(
-        JSON.stringify({ error: 'Invalid target budget value' }),
+        JSON.stringify({ error: 'Target budget must be greater than zero and within allowed range' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Validate work periods
-    for (const period of project.workPeriods) {
+    for (const period of (Array.isArray(project.workPeriods) ? project.workPeriods : [])) {
       if (period.teamSize < 1 || period.teamSize > 1000) {
         return new Response(
           JSON.stringify({ error: 'Invalid team size in work period' }),

@@ -37,7 +37,7 @@ export const useExpenseCategories = (userId?: string) => {
     try {
       const { data, error } = await supabase
         .from("expense_categories")
-        .insert({ ...category, user_id: userId })
+        .insert({ ...category, user_id: userId } as any)
         .select()
         .single();
 
@@ -56,7 +56,7 @@ export const useExpenseCategories = (userId?: string) => {
     try {
       const { error } = await supabase
         .from("expense_categories")
-        .update(updates)
+        .update(updates as any)
         .eq("id", id);
 
       if (error) throw error;

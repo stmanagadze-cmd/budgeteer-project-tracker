@@ -82,7 +82,7 @@ export const useExpenses = (userId?: string, selectedCompanyIds: string[] = []) 
     try {
       const { error } = await supabase
         .from("expenses")
-        .update(updates)
+        .update(updates as any)
         .eq("id", id);
 
       if (error) throw error;

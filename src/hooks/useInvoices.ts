@@ -108,7 +108,7 @@ export const useInvoices = (userId?: string) => {
       
       const { error } = await supabase
         .from("invoices")
-        .update(updates)
+        .update(updates as any)
         .eq("id", id);
 
       if (error) throw error;
