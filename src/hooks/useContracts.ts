@@ -61,7 +61,7 @@ export function useContracts(userId?: string) {
 
   const updateContract = async (id: string, updates: Partial<Contract>) => {
     try {
-      const { error } = await supabase.from("contracts").update(updates).eq("id", id);
+      const { error } = await supabase.from("contracts").update(updates as any).eq("id", id);
       if (error) throw error;
       toast({ title: "Contract updated successfully" });
     } catch (error: any) {
