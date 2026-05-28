@@ -208,32 +208,37 @@ export default function NewInvoiceEditor() {
       if (id) {
         const { error } = await supabase
           .from("invoices")
-          .update(invoiceData)
+          .update(invoiceData as any)
           .eq("id", id);
         if (error) throw error;
 
-        await supabase.from("invoice_line_items").delete().eq("invoice_id", id);
-        
-        if (lineItems.length > 0) {
-          const itemsData = lineItems.map((item) => ({
-            invoice_id: id,
-            item_order: item.item_order,
-            description: item.description,
-            hours: item.hours,
-            price: item.price,
-            amount: item.amount,
-          }));
-          const { error: itemsError } = await supabase
-            .from("invoice_line_items")
-            .insert(itemsData);
-          if (itemsError) throw itemsError;
-        }
+        // Atomic replace of line items via security-definer RPC
+        const itemsPayload = lineItems.map((item) => ({
+          item_order: item.item_order,
+          description: item.description,
+          hours: item.hours,
+          price: item.price,
+          amount: item.amount,
+        }));
+        const { error: rpcErr } = await supabase.rpc(
+          "replace_invoice_line_items" as any,
+          { p_invoice_id: id, p_items: itemsPayload }
+        );
+        if (rpcErr) throw rpcErr;
 
         toast({ title: "Invoice updated successfully" });
       } else {
+        // Reserve invoice number atomically before insert to avoid duplicates
+        let invoiceNumber = formData.invoice_number;
+        if (formData.client_id) {
+          const reserved = await reserveNextInvoiceNumber(formData.client_id);
+          if (reserved === null) return;
+          invoiceNumber = reserved.toString();
+        }
+
         const { data: newInvoice, error } = await supabase
           .from("invoices")
-          .insert([invoiceData])
+          .insert([{ ...invoiceData, invoice_number: invoiceNumber }])
           .select()
           .single();
 
@@ -254,7 +259,6 @@ export default function NewInvoiceEditor() {
           if (itemsError) throw itemsError;
         }
 
-        await incrementInvoiceNumber(formData.client_id);
         toast({ title: "Invoice created successfully" });
         navigate(`/invoices/${newInvoice.id}`);
       }
