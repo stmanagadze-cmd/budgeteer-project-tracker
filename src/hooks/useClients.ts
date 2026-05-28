@@ -111,19 +111,20 @@ export function useClients(userId?: string) {
     }
   };
 
-  const incrementInvoiceNumber = async (clientId: string) => {
+  const reserveNextInvoiceNumber = async (clientId: string): Promise<number | null> => {
     try {
-      const client = clients.find((c) => c.id === clientId);
-      if (!client) return;
-
-      const { error } = await supabase
-        .from("clients")
-        .update({ next_invoice_number: client.next_invoice_number + 1 })
-        .eq("id", clientId);
-
+      const { data, error } = await supabase.rpc("reserve_next_invoice_number" as any, {
+        p_client_id: clientId,
+      });
       if (error) throw error;
+      return typeof data === "number" ? data : Number(data);
     } catch (error: any) {
-      console.error("Error incrementing invoice number:", error);
+      toast({
+        title: "Error reserving invoice number",
+        description: error.message,
+        variant: "destructive",
+      });
+      return null;
     }
   };
 
