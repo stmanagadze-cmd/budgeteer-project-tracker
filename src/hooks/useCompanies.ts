@@ -113,12 +113,23 @@ export function useCompanies(userId?: string) {
 
   const uploadLogo = async (companyId: string, file: File): Promise<string | null> => {
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${userId}/${companyId}.${fileExt}`;
+      const allowedMime: Record<string, string> = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+      };
+      const ext = allowedMime[file.type];
+      if (!ext) {
+        throw new Error('Invalid file type. Only PNG and JPEG images are allowed.');
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image is too large. Maximum size is 5 MB.');
+      }
+
+      const fileName = `${userId}/${companyId}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("company-logos")
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, { upsert: true, contentType: file.type });
 
       if (uploadError) throw uploadError;
 
