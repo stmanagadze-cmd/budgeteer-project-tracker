@@ -314,7 +314,7 @@ export const useProjects = (userId: string | undefined) => {
       if (validatedPeriod.periodCost !== undefined) updateData.period_cost = validatedPeriod.periodCost;
       if (validatedPeriod.images !== undefined) updateData.images = validatedPeriod.images;
 
-      const { error } = await supabase.from("work_periods").update(updateData).eq("id", periodId);
+      const { error } = await supabase.from("work_periods").update(updateData as any).eq("id", periodId);
 
       if (error) throw error;
       toast({ title: "Period updated", description: "Work period has been updated." });
