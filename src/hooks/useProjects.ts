@@ -382,8 +382,8 @@ export const useProjects = (userId: string | undefined) => {
         .eq('id', workPeriodId)
         .maybeSingle();
 
-      const fullPath = `work-period-images/${filePath}`;
-      const updatedImages = [...(workPeriodData?.images || []), fullPath];
+      const storedPath = filePath;
+      const updatedImages = [...(workPeriodData?.images || []), storedPath];
 
       const { error: updateError } = await supabase
         .from('work_periods')
@@ -400,7 +400,7 @@ export const useProjects = (userId: string | undefined) => {
         )
       })));
 
-      return fullPath;
+      return storedPath;
     } catch (error: any) {
       toast({ title: "Error uploading image", description: error.message, variant: "destructive" });
       return null;
