@@ -9,15 +9,33 @@ const signedUrlCache = new Map<string, { url: string; expires: number }>();
  * `work-period-images` bucket. Accepts:
  *   - "{workPeriodId}/{fileName}"
  *   - "work-period-images/{workPeriodId}/{fileName}"
- *   - full Supabase URL containing "/work-period-images/{workPeriodId}/{fileName}"
+ *   - full storage URLs, including legacy signed/public URLs with query params
  */
 export function getWorkPeriodImageObjectPath(imagePath: string): string {
-  const parts = imagePath.split('/');
-  const bucketIndex = parts.findIndex((part) => part === 'work-period-images');
-  if (bucketIndex >= 0) {
-    return parts.slice(bucketIndex + 1).join('/');
+  const rawValue = imagePath.trim();
+  if (!rawValue) return '';
+
+  const normalizeSegments = (value: string) => {
+    const parts = value
+      .split('/')
+      .map((part) => decodeURIComponent(part))
+      .filter(Boolean);
+
+    const bucketIndex = parts.findIndex((part) => part === 'work-period-images');
+    if (bucketIndex >= 0) {
+      return parts.slice(bucketIndex + 1).join('/');
+    }
+
+    return value.replace(/^\/+/, '');
+  };
+
+  try {
+    const url = new URL(rawValue);
+    return normalizeSegments(url.pathname);
+  } catch {
+    const withoutQuery = rawValue.split('?')[0]?.split('#')[0] ?? rawValue;
+    return normalizeSegments(withoutQuery);
   }
-  return imagePath.replace(/^\/+/, '');
 }
 
 export const useImageSigner = (imagePath: string | null) => {
@@ -33,20 +51,22 @@ export const useImageSigner = (imagePath: string | null) => {
     let cancelled = false;
 
     const generateSignedUrl = async () => {
-      const cached = signedUrlCache.get(imagePath);
+      const objectPath = getWorkPeriodImageObjectPath(imagePath);
+      if (!objectPath) {
+        setSignedUrl(null);
+        setLoading(false);
+        return;
+      }
+
+      const cached = signedUrlCache.get(objectPath);
       if (cached && cached.expires > Date.now()) {
         setSignedUrl(cached.url);
+        setLoading(false);
         return;
       }
 
       setLoading(true);
       try {
-        const objectPath = getWorkPeriodImageObjectPath(imagePath);
-        if (!objectPath) {
-          if (!cancelled) setSignedUrl(null);
-          return;
-        }
-
         const { data, error } = await supabase.storage
           .from('work-period-images')
           .createSignedUrl(objectPath, 3600);
@@ -60,7 +80,7 @@ export const useImageSigner = (imagePath: string | null) => {
         }
 
         setSignedUrl(data.signedUrl);
-        signedUrlCache.set(imagePath, {
+        signedUrlCache.set(objectPath, {
           url: data.signedUrl,
           expires: Date.now() + 3500000, // ~58 min
         });
