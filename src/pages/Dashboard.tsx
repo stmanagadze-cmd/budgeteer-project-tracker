@@ -10,7 +10,7 @@ import { CompanyFilter } from "@/components/CompanyFilter";
 import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { DashboardCharts } from "@/components/DashboardCharts";
 import { ExpenseBreakdown } from "@/components/ExpenseBreakdown";
-import ManageCategoriesDialog from "@/components/ManageCategoriesDialog";
+import { ManageCategoriesDialog } from "@/components/ManageCategoriesDialog";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { ManageIncomeCategoriesDialog } from "@/components/ManageIncomeCategoriesDialog";
 import { AddIncomeDialog } from "@/components/AddIncomeDialog";
