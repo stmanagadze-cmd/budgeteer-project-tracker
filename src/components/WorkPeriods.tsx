@@ -200,14 +200,16 @@ const WorkPeriods = ({
     return parseDate(dateStr).toLocaleDateString();
   }, [parseDate]);
 
+  const filteredPeriods = useMemo(() => {
+    if (!project.workPeriods) return [];
+    return showArchived
+      ? project.workPeriods
+      : project.workPeriods.filter((p) => !p.archived);
+  }, [project.workPeriods, showArchived]);
+
+  // Kept for PDF export / parent compatibility (initial default sort)
   const sortedWorkPeriods = useMemo(() => {
-    // Early exit if no periods to avoid unnecessary work
-    if (!project.workPeriods || project.workPeriods.length === 0) {
-      return [];
-    }
-    
-    const periods = [...project.workPeriods];
-    
+    const periods = [...filteredPeriods];
     switch (sortBy) {
       case "date":
         return periods.sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
@@ -218,7 +220,8 @@ const WorkPeriods = ({
       default:
         return periods;
     }
-  }, [project.workPeriods, sortBy, parseDate]);
+  }, [filteredPeriods, sortBy, parseDate]);
+
 
   // Memoize the add submit handler to prevent unnecessary re-renders
   const handleAddSubmit = useCallback((e: React.FormEvent) => {
