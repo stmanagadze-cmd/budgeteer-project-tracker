@@ -442,6 +442,31 @@ export const useProjects = (userId: string | undefined) => {
     }
   }, [toast]);
 
+  const setProjectArchived = useCallback(async (id: string, archived: boolean) => {
+    const old = projects;
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, archived } : p));
+    const { error } = await supabase.from("projects").update({ archived } as any).eq("id", id);
+    if (error) {
+      setProjects(old);
+      toast({ title: "Error updating project", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: archived ? "Project archived" : "Project restored" });
+  }, [projects, toast]);
+
+  const setWorkPeriodArchived = useCallback(async (periodId: string, archived: boolean) => {
+    setProjects(prev => prev.map(p => ({
+      ...p,
+      workPeriods: p.workPeriods.map(wp => wp.id === periodId ? { ...wp, archived } : wp),
+    })));
+    const { error } = await supabase.from("work_periods").update({ archived } as any).eq("id", periodId);
+    if (error) {
+      toast({ title: "Error updating period", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: archived ? "Period archived" : "Period restored" });
+  }, [toast]);
+
   return {
     projects,
     loading,
@@ -453,5 +478,8 @@ export const useProjects = (userId: string | undefined) => {
     deleteWorkPeriod,
     uploadWorkPeriodImage,
     deleteWorkPeriodImage,
+    setProjectArchived,
+    setWorkPeriodArchived,
   };
 };
+
