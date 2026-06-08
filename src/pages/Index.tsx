@@ -206,6 +206,7 @@ const Index = () => {
         onAddProject={handleAddProject}
         onRenameProject={handleRenameProject}
         onDeleteProject={handleDeleteProject}
+        onArchiveProject={setProjectArchived}
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
         <div className="flex justify-end gap-2">
