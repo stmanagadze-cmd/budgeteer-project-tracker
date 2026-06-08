@@ -18,7 +18,7 @@ const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
-  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage } = useProjects(userId);
+  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage, setProjectArchived, setWorkPeriodArchived } = useProjects(userId);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"date" | "totalHours" | "periodCost">("date");
