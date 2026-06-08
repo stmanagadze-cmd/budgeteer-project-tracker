@@ -1,4 +1,4 @@
-import { Plus, MoreVertical, Trash2, Edit2, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
+import { Plus, MoreVertical, Trash2, Edit2, Archive, ArchiveRestore, Eye, EyeOff, FolderCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ interface ProjectTabsProps {
   onRenameProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
   onArchiveProject?: (id: string, archived: boolean) => void;
+  onManageCategories?: () => void;
 }
 
 const ProjectTabs = ({
@@ -28,6 +29,7 @@ const ProjectTabs = ({
   onRenameProject,
   onDeleteProject,
   onArchiveProject,
+  onManageCategories,
 }: ProjectTabsProps) => {
   const [showArchived, setShowArchived] = useState(false);
 
@@ -49,6 +51,18 @@ const ProjectTabs = ({
             <Plus className="h-4 w-4 mr-1" />
             New Project
           </Button>
+          {onManageCategories && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-shrink-0"
+              onClick={onManageCategories}
+              title="Manage categories"
+            >
+              <FolderCog className="h-4 w-4 mr-1" />
+              Categories
+            </Button>
+          )}
           {archivedCount > 0 && (
             <Button
               variant="outline"
