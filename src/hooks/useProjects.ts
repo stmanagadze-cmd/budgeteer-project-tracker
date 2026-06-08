@@ -68,6 +68,7 @@ export const useProjects = (userId: string | undefined) => {
         workPeriods: periodsMap.get(p.id) || [],
         createdAt: p.created_at,
         archived: Boolean((p as any).archived ?? false),
+        categoryId: ((p as any).category_id ?? null) as string | null,
       }));
 
       setProjects(projectsWithPeriods);
@@ -120,9 +121,9 @@ export const useProjects = (userId: string | undefined) => {
         targetBudget: validatedProject.targetBudget,
         workPeriods: [],
         createdAt: now,
+        categoryId: validatedProject.categoryId ?? null,
       };
-      
-      // Insert at top (newest first)
+
       setProjects(prev => [newProject, ...prev]);
 
       const { data, error } = await supabase
@@ -132,18 +133,17 @@ export const useProjects = (userId: string | undefined) => {
           name: validatedProject.name,
           hourly_salary: validatedProject.hourlySalary,
           target_budget: validatedProject.targetBudget,
-        })
+          category_id: validatedProject.categoryId ?? null,
+        } as any)
         .select()
         .single();
 
       if (error) {
-        // Rollback on error
         setProjects(prev => prev.filter(p => p.id !== tempId));
         throw error;
       }
 
-      // Replace temp with real ID and actual createdAt
-      setProjects(prev => prev.map(p => 
+      setProjects(prev => prev.map(p =>
         p.id === tempId ? { ...p, id: data.id, createdAt: data.created_at } : p
       ));
 
@@ -159,10 +159,11 @@ export const useProjects = (userId: string | undefined) => {
     try {
       const validatedUpdates = projectSchema.partial().parse(updates);
       const updateData: Record<string, any> = {};
-      
+
       if (validatedUpdates.name !== undefined) updateData.name = validatedUpdates.name;
       if (validatedUpdates.hourlySalary !== undefined) updateData.hourly_salary = validatedUpdates.hourlySalary;
       if (validatedUpdates.targetBudget !== undefined) updateData.target_budget = validatedUpdates.targetBudget;
+      if (validatedUpdates.categoryId !== undefined) updateData.category_id = validatedUpdates.categoryId;
 
       // Optimistic update
       const oldProjects = projects;
@@ -288,15 +289,16 @@ export const useProjects = (userId: string | undefined) => {
       }
 
       // Replace temp ID with real ID
-      setProjects(prev => prev.map(p => 
-        p.id === projectId 
-          ? { ...p, workPeriods: p.workPeriods.map(wp => 
+      setProjects(prev => prev.map(p =>
+        p.id === projectId
+          ? { ...p, workPeriods: p.workPeriods.map(wp =>
               wp.id === tempId ? { ...wp, id: data.id } : wp
             )}
           : p
       ));
 
       toast({ title: "Period added", description: "Work period has been added." });
+      return data.id as string;
     } catch (error: any) {
       const message = error instanceof ZodError ? error.errors[0].message : error.message;
       toast({ title: "Error adding period", description: message, variant: "destructive" });
