@@ -176,6 +176,15 @@ const Dashboard = () => {
           hierarchicalCategories={hierarchicalCategories}
         />
 
+        {/* Expenses Table (sortable + virtualized, supports archive/delete) */}
+        <ExpensesTable
+          expenses={expenses}
+          categories={categories}
+          onDelete={deleteExpense}
+          onArchiveToggle={setExpenseArchived}
+        />
+
+
         {/* Unpaid Invoices Table */}
         <div className="border rounded-lg">
           <div className="p-4 border-b bg-muted/50">
