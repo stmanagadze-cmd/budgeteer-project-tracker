@@ -295,6 +295,7 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
+          archived: boolean
           category_id: string | null
           company_id: string | null
           created_at: string
@@ -307,6 +308,7 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          archived?: boolean
           category_id?: string | null
           company_id?: string | null
           created_at?: string
@@ -319,6 +321,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          archived?: boolean
           category_id?: string | null
           company_id?: string | null
           created_at?: string
@@ -635,6 +638,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          archived: boolean
           created_at: string
           hourly_salary: number
           id: string
@@ -644,6 +648,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          archived?: boolean
           created_at?: string
           hourly_salary?: number
           id?: string
@@ -653,6 +658,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          archived?: boolean
           created_at?: string
           hourly_salary?: number
           id?: string
@@ -726,6 +732,7 @@ export type Database = {
       }
       work_periods: {
         Row: {
+          archived: boolean
           created_at: string
           date: string
           days_worked: number
@@ -740,6 +747,7 @@ export type Database = {
           work_type: string
         }
         Insert: {
+          archived?: boolean
           created_at?: string
           date: string
           days_worked: number
@@ -754,6 +762,7 @@ export type Database = {
           work_type: string
         }
         Update: {
+          archived?: boolean
           created_at?: string
           date?: string
           days_worked?: number

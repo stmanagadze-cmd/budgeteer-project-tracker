@@ -14,6 +14,7 @@ import { ManageCategoriesDialog } from "@/components/ManageCategoriesDialog";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { ManageIncomeCategoriesDialog } from "@/components/ManageIncomeCategoriesDialog";
 import { AddIncomeDialog } from "@/components/AddIncomeDialog";
+import { ExpensesTable } from "@/components/ExpensesTable";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -44,7 +45,7 @@ const Dashboard = () => {
     updateCategory, 
     deleteCategory 
   } = useExpenseCategories(userId);
-  const { expenses, createExpense } = useExpenses(userId, selectedCompanyIds);
+  const { expenses, createExpense, deleteExpense, setExpenseArchived } = useExpenses(userId, selectedCompanyIds);
   const {
     categories: incomeCategories,
     createCategory: createIncomeCategory,
@@ -174,6 +175,15 @@ const Dashboard = () => {
           categories={categories}
           hierarchicalCategories={hierarchicalCategories}
         />
+
+        {/* Expenses Table (sortable + virtualized, supports archive/delete) */}
+        <ExpensesTable
+          expenses={expenses}
+          categories={categories}
+          onDelete={deleteExpense}
+          onArchiveToggle={setExpenseArchived}
+        />
+
 
         {/* Unpaid Invoices Table */}
         <div className="border rounded-lg">

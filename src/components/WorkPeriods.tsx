@@ -3,14 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trash2, Edit, Upload, X, ArrowUpDown } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2, Edit, Upload, X, ArrowUpDown, Archive, ArchiveRestore } from "lucide-react";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import WorkPeriodImage from "@/components/WorkPeriodImage";
-import { Skeleton } from "@/components/ui/skeleton";
+import { VirtualTable, VirtualTableColumn } from "@/components/ui/virtual-table";
 
 interface WorkPeriodsProps {
   project: Project;
@@ -19,9 +30,11 @@ interface WorkPeriodsProps {
   onDeletePeriod: (periodId: string) => void;
   onUploadImage: (periodId: string, file: File) => Promise<string | null>;
   onDeleteImage: (periodId: string, imageUrl: string) => Promise<void>;
+  onArchivePeriod?: (periodId: string, archived: boolean) => void;
   sortBy: "date" | "totalHours" | "periodCost";
   onSortChange: (sortBy: "date" | "totalHours" | "periodCost") => void;
 }
+
 
 interface EditWorkPeriodFormProps {
   period: WorkPeriod;
@@ -146,20 +159,24 @@ const EditWorkPeriodForm = memo(function EditWorkPeriodForm({
   );
 });
 
-const WorkPeriods = ({ 
-  project, 
-  onAddPeriod, 
+const WorkPeriods = ({
+  project,
+  onAddPeriod,
   onUpdatePeriod,
   onDeletePeriod,
   onUploadImage,
   onDeleteImage,
+  onArchivePeriod,
   sortBy,
-  onSortChange
+  onSortChange,
 }: WorkPeriodsProps) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingPeriod, setEditingPeriod] = useState<WorkPeriod | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<WorkPeriod | null>(null);
+
   
   // Separate state for add form
   const [addFormData, setAddFormData] = useState({
@@ -183,14 +200,16 @@ const WorkPeriods = ({
     return parseDate(dateStr).toLocaleDateString();
   }, [parseDate]);
 
+  const filteredPeriods = useMemo(() => {
+    if (!project.workPeriods) return [];
+    return showArchived
+      ? project.workPeriods
+      : project.workPeriods.filter((p) => !p.archived);
+  }, [project.workPeriods, showArchived]);
+
+  // Kept for PDF export / parent compatibility (initial default sort)
   const sortedWorkPeriods = useMemo(() => {
-    // Early exit if no periods to avoid unnecessary work
-    if (!project.workPeriods || project.workPeriods.length === 0) {
-      return [];
-    }
-    
-    const periods = [...project.workPeriods];
-    
+    const periods = [...filteredPeriods];
     switch (sortBy) {
       case "date":
         return periods.sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
@@ -201,7 +220,8 @@ const WorkPeriods = ({
       default:
         return periods;
     }
-  }, [project.workPeriods, sortBy, parseDate]);
+  }, [filteredPeriods, sortBy, parseDate]);
+
 
   // Memoize the add submit handler to prevent unnecessary re-renders
   const handleAddSubmit = useCallback((e: React.FormEvent) => {
@@ -308,26 +328,222 @@ const WorkPeriods = ({
     });
   }, [project.workPeriods, onDeleteImage, onUpdatePeriod, toast]);
 
+  const archivedCount = project.workPeriods.filter((p) => p.archived).length;
+
+  const columns: VirtualTableColumn<WorkPeriod>[] = useMemo(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        sortable: true,
+        sortValue: (p) => parseDate(p.date),
+        cell: (p) => <span className="tabular-nums">{formatDate(p.date)}</span>,
+        width: "120px",
+      },
+      {
+        id: "teamSize",
+        header: "Team",
+        sortable: true,
+        sortValue: (p) => p.teamSize,
+        cell: (p) => p.teamSize,
+        width: "80px",
+      },
+      {
+        id: "daysWorked",
+        header: "Days",
+        sortable: true,
+        sortValue: (p) => p.daysWorked,
+        cell: (p) => p.daysWorked,
+        width: "80px",
+      },
+      {
+        id: "hoursPerDay",
+        header: "Hrs/Day",
+        sortable: true,
+        sortValue: (p) => p.hoursPerDay,
+        cell: (p) => p.hoursPerDay,
+        width: "90px",
+      },
+      {
+        id: "totalHours",
+        header: "Total Hrs",
+        sortable: true,
+        sortValue: (p) => p.totalHours,
+        cell: (p) => <span className="font-medium tabular-nums">{p.totalHours}</span>,
+        width: "100px",
+      },
+      {
+        id: "workType",
+        header: "Work Type",
+        sortable: true,
+        sortValue: (p) => p.workType?.toLowerCase(),
+        cell: (p) => <span className="truncate">{p.workType}</span>,
+        width: "minmax(0, 1fr)",
+      },
+      {
+        id: "location",
+        header: "Location",
+        sortable: true,
+        sortValue: (p) => p.location?.toLowerCase(),
+        cell: (p) => <span className="truncate">{p.location}</span>,
+        width: "minmax(0, 1fr)",
+      },
+      {
+        id: "periodCost",
+        header: "Cost",
+        sortable: true,
+        sortValue: (p) => p.periodCost,
+        cell: (p) => <span className="font-medium tabular-nums">${p.periodCost.toFixed(2)}</span>,
+        width: "120px",
+        className: "text-right",
+        headerClassName: "justify-end",
+      },
+      {
+        id: "status",
+        header: "Status",
+        sortable: true,
+        sortValue: (p) => (p.archived ? "archived" : "active"),
+        cell: (p) =>
+          p.archived ? (
+            <Badge variant="secondary">Archived</Badge>
+          ) : (
+            <Badge variant="outline">Active</Badge>
+          ),
+        width: "110px",
+      },
+      {
+        id: "images",
+        header: "Images",
+        cell: (p) => (
+          <div className="flex items-center gap-2 min-w-0">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              multiple
+              className="hidden"
+              onChange={(e) => handleImageUpload(p.id, e.target.files)}
+              id={`file-${p.id}`}
+            />
+            <label htmlFor={`file-${p.id}`}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploadingImages[p.id]}
+                asChild
+              >
+                <span className="cursor-pointer">
+                  <Upload className="h-3.5 w-3.5 mr-1" />
+                  {uploadingImages[p.id] ? "…" : "Upload"}
+                </span>
+              </Button>
+            </label>
+            {p.images && p.images.length > 0 && (
+              <div className="flex gap-1 overflow-hidden">
+                {p.images.slice(0, 3).map((imageUrl, idx) => (
+                  <div key={idx} className="relative group flex-shrink-0">
+                    <WorkPeriodImage
+                      imagePath={imageUrl}
+                      alt={`img ${idx + 1}`}
+                      className="h-9 w-9 object-cover rounded cursor-pointer"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleRemoveImage(p.id, imageUrl)}
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </Button>
+                  </div>
+                ))}
+                {p.images.length > 3 && (
+                  <span className="text-xs text-muted-foreground self-center ml-1">
+                    +{p.images.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ),
+        width: "260px",
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: (p) => (
+          <div className="flex gap-1 justify-end">
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} title="Edit">
+              <Edit className="h-4 w-4" />
+            </Button>
+            {onArchivePeriod && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onArchivePeriod(p.id, !p.archived)}
+                title={p.archived ? "Restore" : "Archive"}
+              >
+                {p.archived ? (
+                  <ArchiveRestore className="h-4 w-4" />
+                ) : (
+                  <Archive className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setConfirmDelete(p)}
+              className="text-destructive hover:text-destructive"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+        width: "140px",
+        className: "justify-end",
+        headerClassName: "justify-end",
+      },
+    ],
+    [parseDate, formatDate, uploadingImages, handleImageUpload, handleRemoveImage, handleEdit, onArchivePeriod],
+  );
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <CardTitle>Work Periods</CardTitle>
-          <div className="flex items-center gap-2">
-            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-            <Select value={sortBy} onValueChange={(value: "date" | "totalHours" | "periodCost") => onSortChange(value)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date">Date</SelectItem>
-                <SelectItem value="totalHours">Total Hours</SelectItem>
-                <SelectItem value="periodCost">Period Cost</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-3 flex-wrap">
+            {archivedCount > 0 && (
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-archived-periods"
+                  checked={showArchived}
+                  onCheckedChange={setShowArchived}
+                />
+                <Label htmlFor="show-archived-periods" className="text-sm cursor-pointer">
+                  Show archived ({archivedCount})
+                </Label>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+              <Select value={sortBy} onValueChange={(value: "date" | "totalHours" | "periodCost") => onSortChange(value)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Date (PDF default)</SelectItem>
+                  <SelectItem value="totalHours">Total Hours (PDF)</SelectItem>
+                  <SelectItem value="periodCost">Period Cost (PDF)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </CardHeader>
+
       <CardContent>
         {/* Inline Add Work Period Form */}
         <form onSubmit={handleAddSubmit} className="mb-6 p-4 border rounded-lg bg-muted/50">
@@ -436,115 +652,38 @@ const WorkPeriods = ({
           </DialogContent>
         </Dialog>
 
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Team Size</TableHead>
-                <TableHead>Days</TableHead>
-                <TableHead>Hrs/Day</TableHead>
-                <TableHead>Total Hrs</TableHead>
-                <TableHead className="whitespace-nowrap">Work Type</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Period Cost</TableHead>
-                <TableHead>Images</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedWorkPeriods.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">
-                    No work periods added yet
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedWorkPeriods.map((period, index) => (
-                  <TableRow key={period.id}>
-                    <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                    <TableCell>{formatDate(period.date)}</TableCell>
-                    <TableCell>{period.teamSize}</TableCell>
-                    <TableCell>{period.daysWorked}</TableCell>
-                    <TableCell>{period.hoursPerDay}</TableCell>
-                    <TableCell className="font-medium">{period.totalHours}</TableCell>
-                    <TableCell>{period.workType}</TableCell>
-                    <TableCell>{period.location}</TableCell>
-                    <TableCell className="font-medium">${period.periodCost.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => handleImageUpload(period.id, e.target.files)}
-                          id={`file-${period.id}`}
-                        />
-                        <label htmlFor={`file-${period.id}`}>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={uploadingImages[period.id]}
-                            asChild
-                          >
-                            <span className="cursor-pointer">
-                              <Upload className="h-4 w-4 mr-1" />
-                              {uploadingImages[period.id] ? "Uploading..." : "Upload"}
-                            </span>
-                          </Button>
-                        </label>
-                        {period.images && period.images.length > 0 && (
-                          <div className="flex gap-1">
-                            {period.images.map((imageUrl, idx) => (
-                              <div key={idx} className="relative group">
-                                <WorkPeriodImage
-                                  imagePath={imageUrl}
-                                  alt={`Period ${idx + 1}`}
-                                  className="h-10 w-10 object-cover rounded cursor-pointer"
-                                />
-                                <Button
-                                  variant="destructive"
-                                  size="icon"
-                                  className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => handleRemoveImage(period.id, imageUrl)}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(period)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDeletePeriod(period.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <VirtualTable
+          rows={sortedWorkPeriods}
+          columns={columns}
+          rowKey={(p) => p.id}
+          rowHeight={64}
+          maxBodyHeight={560}
+          getRowClassName={(p) => (p.archived ? "opacity-50 bg-muted/30" : "")}
+          empty="No work periods added yet"
+        />
+
+        <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete work period?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently removes the period from {formatDate(confirmDelete?.date || project.workPeriods[0]?.date || new Date().toISOString().slice(0,10))} and its attached images. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={async () => {
+                  if (confirmDelete) await onDeletePeriod(confirmDelete.id);
+                  setConfirmDelete(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

@@ -18,7 +18,7 @@ const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
-  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage } = useProjects(userId);
+  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage, setProjectArchived, setWorkPeriodArchived } = useProjects(userId);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"date" | "totalHours" | "periodCost">("date");
@@ -206,6 +206,7 @@ const Index = () => {
         onAddProject={handleAddProject}
         onRenameProject={handleRenameProject}
         onDeleteProject={handleDeleteProject}
+        onArchiveProject={setProjectArchived}
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
         <div className="flex justify-end gap-2">
@@ -256,6 +257,7 @@ const Index = () => {
           onDeletePeriod={handleDeletePeriod}
           onUploadImage={uploadWorkPeriodImage}
           onDeleteImage={deleteWorkPeriodImage}
+          onArchivePeriod={setWorkPeriodArchived}
           sortBy={sortBy}
           onSortChange={setSortBy}
         />
