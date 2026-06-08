@@ -690,6 +690,3 @@ const WorkPeriods = ({
 };
 
 export default WorkPeriods;
-
-
-export default WorkPeriods;
