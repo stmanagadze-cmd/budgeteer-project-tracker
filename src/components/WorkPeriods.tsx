@@ -159,20 +159,24 @@ const EditWorkPeriodForm = memo(function EditWorkPeriodForm({
   );
 });
 
-const WorkPeriods = ({ 
-  project, 
-  onAddPeriod, 
+const WorkPeriods = ({
+  project,
+  onAddPeriod,
   onUpdatePeriod,
   onDeletePeriod,
   onUploadImage,
   onDeleteImage,
+  onArchivePeriod,
   sortBy,
-  onSortChange
+  onSortChange,
 }: WorkPeriodsProps) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingPeriod, setEditingPeriod] = useState<WorkPeriod | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<WorkPeriod | null>(null);
+
   
   // Separate state for add form
   const [addFormData, setAddFormData] = useState({
