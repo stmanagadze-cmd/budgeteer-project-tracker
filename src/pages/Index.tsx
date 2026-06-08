@@ -257,6 +257,7 @@ const Index = () => {
           onDeletePeriod={handleDeletePeriod}
           onUploadImage={uploadWorkPeriodImage}
           onDeleteImage={deleteWorkPeriodImage}
+          onArchivePeriod={setWorkPeriodArchived}
           sortBy={sortBy}
           onSortChange={setSortBy}
         />
