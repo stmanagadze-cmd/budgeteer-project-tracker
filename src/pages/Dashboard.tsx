@@ -14,6 +14,7 @@ import { ManageCategoriesDialog } from "@/components/ManageCategoriesDialog";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { ManageIncomeCategoriesDialog } from "@/components/ManageIncomeCategoriesDialog";
 import { AddIncomeDialog } from "@/components/AddIncomeDialog";
+import { ExpensesTable } from "@/components/ExpensesTable";
 import { Button } from "@/components/ui/button";
 import {
   Table,
