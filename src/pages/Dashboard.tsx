@@ -45,7 +45,7 @@ const Dashboard = () => {
     updateCategory, 
     deleteCategory 
   } = useExpenseCategories(userId);
-  const { expenses, createExpense } = useExpenses(userId, selectedCompanyIds);
+  const { expenses, createExpense, deleteExpense, setExpenseArchived } = useExpenses(userId, selectedCompanyIds);
   const {
     categories: incomeCategories,
     createCategory: createIncomeCategory,
