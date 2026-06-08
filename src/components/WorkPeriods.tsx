@@ -652,118 +652,44 @@ const WorkPeriods = ({
           </DialogContent>
         </Dialog>
 
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Team Size</TableHead>
-                <TableHead>Days</TableHead>
-                <TableHead>Hrs/Day</TableHead>
-                <TableHead>Total Hrs</TableHead>
-                <TableHead className="whitespace-nowrap">Work Type</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Period Cost</TableHead>
-                <TableHead>Images</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedWorkPeriods.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">
-                    No work periods added yet
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedWorkPeriods.map((period, index) => (
-                  <TableRow key={period.id}>
-                    <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                    <TableCell>{formatDate(period.date)}</TableCell>
-                    <TableCell>{period.teamSize}</TableCell>
-                    <TableCell>{period.daysWorked}</TableCell>
-                    <TableCell>{period.hoursPerDay}</TableCell>
-                    <TableCell className="font-medium">{period.totalHours}</TableCell>
-                    <TableCell>{period.workType}</TableCell>
-                    <TableCell>{period.location}</TableCell>
-                    <TableCell className="font-medium">${period.periodCost.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => handleImageUpload(period.id, e.target.files)}
-                          id={`file-${period.id}`}
-                        />
-                        <label htmlFor={`file-${period.id}`}>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={uploadingImages[period.id]}
-                            asChild
-                          >
-                            <span className="cursor-pointer">
-                              <Upload className="h-4 w-4 mr-1" />
-                              {uploadingImages[period.id] ? "Uploading..." : "Upload"}
-                            </span>
-                          </Button>
-                        </label>
-                        {period.images && period.images.length > 0 && (
-                          <div className="flex gap-1">
-                            {period.images.map((imageUrl, idx) => (
-                              <div key={idx} className="relative group">
-                                <WorkPeriodImage
-                                  imagePath={imageUrl}
-                                  alt={`Period ${idx + 1}`}
-                                  className="h-10 w-10 object-cover rounded cursor-pointer"
-                                />
-                                <Button
-                                  variant="destructive"
-                                  size="icon"
-                                  className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => handleRemoveImage(period.id, imageUrl)}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(period)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDeletePeriod(period.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <VirtualTable
+          rows={sortedWorkPeriods}
+          columns={columns}
+          rowKey={(p) => p.id}
+          rowHeight={64}
+          maxBodyHeight={560}
+          getRowClassName={(p) => (p.archived ? "opacity-50 bg-muted/30" : "")}
+          empty="No work periods added yet"
+        />
+
+        <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete work period?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently removes the period from {formatDate(confirmDelete?.date || project.workPeriods[0]?.date || new Date().toISOString().slice(0,10))} and its attached images. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={async () => {
+                  if (confirmDelete) await onDeletePeriod(confirmDelete.id);
+                  setConfirmDelete(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
 };
+
+export default WorkPeriods;
+
 
 export default WorkPeriods;
