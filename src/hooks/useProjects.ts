@@ -67,6 +67,7 @@ export const useProjects = (userId: string | undefined) => {
         targetBudget: Number(p.target_budget),
         workPeriods: periodsMap.get(p.id) || [],
         createdAt: p.created_at,
+        archived: Boolean((p as any).archived ?? false),
       }));
 
       setProjects(projectsWithPeriods);
