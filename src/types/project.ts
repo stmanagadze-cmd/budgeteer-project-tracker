@@ -9,6 +9,8 @@ export interface WorkPeriod {
   totalHours: number;
   periodCost: number;
   images: string[];
+  archived: boolean;
+  createdAt?: string;
 }
 
 export interface Project {
@@ -18,4 +20,5 @@ export interface Project {
   targetBudget: number;
   workPeriods: WorkPeriod[];
   createdAt: string;
+  archived: boolean;
 }
