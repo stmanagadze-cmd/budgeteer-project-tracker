@@ -54,6 +54,8 @@ export const useProjects = (userId: string | undefined) => {
           totalHours: Number(wp.total_hours),
           periodCost: Number(wp.period_cost),
           images: wp.images || [],
+          archived: Boolean((wp as any).archived ?? false),
+          createdAt: wp.created_at,
         });
         periodsMap.set(wp.project_id, list);
       });
