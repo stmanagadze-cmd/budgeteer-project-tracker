@@ -108,6 +108,20 @@ export const useExpenses = (userId?: string, selectedCompanyIds: string[] = []) 
     }
   };
 
+  const setExpenseArchived = async (id: string, archived: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("expenses")
+        .update({ archived } as any)
+        .eq("id", id);
+      if (error) throw error;
+      toast.success(archived ? "Expense archived" : "Expense restored");
+    } catch (error) {
+      console.error("Error updating expense:", error);
+      toast.error("Failed to update expense");
+    }
+  };
+
   // Calculate totals by category
   const expensesByCategory = expenses.reduce((acc, exp) => {
     const categoryName = exp.category?.name || "Uncategorized";
@@ -125,6 +139,8 @@ export const useExpenses = (userId?: string, selectedCompanyIds: string[] = []) 
     createExpense,
     updateExpense,
     deleteExpense,
+    setExpenseArchived,
     refetch: fetchExpenses,
   };
 };
+
