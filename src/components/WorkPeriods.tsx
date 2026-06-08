@@ -3,14 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trash2, Edit, Upload, X, ArrowUpDown } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2, Edit, Upload, X, ArrowUpDown, Archive, ArchiveRestore } from "lucide-react";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import WorkPeriodImage from "@/components/WorkPeriodImage";
-import { Skeleton } from "@/components/ui/skeleton";
+import { VirtualTable, VirtualTableColumn } from "@/components/ui/virtual-table";
 
 interface WorkPeriodsProps {
   project: Project;
@@ -19,9 +30,11 @@ interface WorkPeriodsProps {
   onDeletePeriod: (periodId: string) => void;
   onUploadImage: (periodId: string, file: File) => Promise<string | null>;
   onDeleteImage: (periodId: string, imageUrl: string) => Promise<void>;
+  onArchivePeriod?: (periodId: string, archived: boolean) => void;
   sortBy: "date" | "totalHours" | "periodCost";
   onSortChange: (sortBy: "date" | "totalHours" | "periodCost") => void;
 }
+
 
 interface EditWorkPeriodFormProps {
   period: WorkPeriod;
