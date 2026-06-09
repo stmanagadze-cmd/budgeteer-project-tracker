@@ -452,52 +452,28 @@ serve(async (req) => {
       return rel || null;
     };
 
-    // Convert ArrayBuffer to base64 in chunks (avoid call-stack overflow on large images)
-    const bufferToBase64 = (buf: ArrayBuffer): string => {
-      const bytes = new Uint8Array(buf);
-      let binary = '';
-      const chunkSize = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode.apply(
-          null,
-          Array.from(bytes.subarray(i, i + chunkSize)) as unknown as number[]
-        );
-      }
-      return btoa(binary);
-    };
-
-    // Download each image and inline as a base64 data URI so the exported
-    // HTML is fully self-contained (works offline, no expiring tokens).
+    // Sign URLs only (cheap, no CPU cost). The browser does the
+    // base64 inlining before saving the file — well under edge CPU limits.
     const workPeriodsWithSignedUrls = await Promise.all(
       project.workPeriods.map(async (period) => {
         if (!period.images || period.images.length === 0) return period;
 
-        const inlinedImages = await Promise.all(
+        const signed = await Promise.all(
           period.images.map(async (imagePath) => {
             const objectPath = toObjectPath(imagePath);
-            if (!objectPath) {
-              console.warn('Invalid image path format:', imagePath);
+            if (!objectPath) return '';
+            const { data, error } = await supabaseClient.storage
+              .from('work-period-images')
+              .createSignedUrl(objectPath, 3600);
+            if (error || !data?.signedUrl) {
+              console.error('Sign URL failed:', objectPath, error?.message);
               return '';
             }
-            try {
-              const { data, error } = await supabaseClient.storage
-                .from('work-period-images')
-                .download(objectPath);
-              if (error || !data) {
-                console.error('Error downloading image for embed:', objectPath, error?.message);
-                return '';
-              }
-              const mime = data.type || 'image/jpeg';
-              const base64 = bufferToBase64(await data.arrayBuffer());
-              return `data:${mime};base64,${base64}`;
-            } catch (err) {
-              console.error('Error embedding image:', objectPath, err);
-              return '';
-            }
+            return data.signedUrl;
           })
         );
 
-        return { ...period, images: inlinedImages.filter(Boolean) };
+        return { ...period, images: signed.filter(Boolean) };
       })
     );
 
