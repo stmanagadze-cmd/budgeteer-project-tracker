@@ -163,8 +163,29 @@ const Index = () => {
       const today = new Date().toISOString().split('T')[0];
       const fileName = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_export_${today}.html`;
 
-      // Create a blob from the HTML response
-      const blob = new Blob([data], { type: 'text/html' });
+      // Inline all <img src="https://..."> as base64 data URIs so the
+      // exported HTML is self-contained (signed URLs would otherwise expire).
+      const html = typeof data === 'string' ? data : new TextDecoder().decode(data);
+      const urlToDataUri = async (u: string): Promise<string> => {
+        try {
+          const res = await fetch(u);
+          if (!res.ok) return u;
+          const b = await res.blob();
+          return await new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onloadend = () => resolve(fr.result as string);
+            fr.onerror = reject;
+            fr.readAsDataURL(b);
+          });
+        } catch { return u; }
+      };
+      const srcRegex = /<img\b[^>]*\bsrc=["'](https?:\/\/[^"']+)["']/gi;
+      const uniqueUrls = Array.from(new Set(Array.from(html.matchAll(srcRegex), (m) => m[1])));
+      const replacements = new Map<string, string>();
+      await Promise.all(uniqueUrls.map(async (u) => { replacements.set(u, await urlToDataUri(u)); }));
+      const inlinedHtml = html.replace(srcRegex, (match, u) => match.replace(u, replacements.get(u) ?? u));
+
+      const blob = new Blob([inlinedHtml], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
