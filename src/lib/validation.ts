@@ -16,11 +16,6 @@ export const projectSchema = z.object({
   name: z.string().trim().min(1, "Project name is required").max(200, "Project name cannot exceed 200 characters"),
   hourlySalary: z.number().min(0, "Hourly salary must be positive").max(10000, "Hourly salary seems unreasonably high"),
   targetBudget: z.number().min(0, "Target budget must be positive").max(10000000, "Target budget seems unreasonably high"),
-  categoryId: z.string().uuid().nullable().optional(),
-});
-
-export const projectCategorySchema = z.object({
-  name: z.string().trim().min(1, "Category name is required").max(60, "Category name too long"),
 });
 
 export const pdfReportSchema = z.object({

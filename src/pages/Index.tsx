@@ -8,43 +8,19 @@ import KPICards from "@/components/KPICards";
 import BudgetCharts from "@/components/BudgetCharts";
 import WorkPeriods from "@/components/WorkPeriods";
 import SettingsSidebar from "@/components/SettingsSidebar";
-import MyProjectsList from "@/components/MyProjectsList";
-import ManageProjectCategoriesDialog from "@/components/ManageProjectCategoriesDialog";
-import ProjectFormDialog from "@/components/ProjectFormDialog";
 import { Project, WorkPeriod } from "@/types/project";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Settings, LogOut, FileDown, FileText } from "lucide-react";
 import { useProjects } from "@/hooks/useProjects";
-import { useProjectCategories } from "@/hooks/useProjectCategories";
 
 const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>();
-  const {
-    projects,
-    loading,
-    addProject,
-    updateProject,
-    deleteProject,
-    addWorkPeriod,
-    updateWorkPeriod,
-    deleteWorkPeriod,
-    uploadWorkPeriodImage,
-    deleteWorkPeriodImage,
-    setProjectArchived,
-    setWorkPeriodArchived,
-  } = useProjects(userId);
-  const { categories, addCategory, renameCategory, deleteCategory } = useProjectCategories(userId);
+  const { projects, loading, addProject, updateProject, deleteProject, addWorkPeriod, updateWorkPeriod, deleteWorkPeriod, uploadWorkPeriodImage, deleteWorkPeriodImage, setProjectArchived, setWorkPeriodArchived } = useProjects(userId);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [categoriesDialogOpen, setCategoriesDialogOpen] = useState(false);
-  const [projectFormDialog, setProjectFormDialog] = useState<{
-    open: boolean;
-    mode: "create" | "edit";
-    projectId?: string;
-  }>({ open: false, mode: "create" });
   const [sortBy, setSortBy] = useState<"date" | "totalHours" | "periodCost">("date");
   const [visibleCards, setVisibleCards] = useState({
     totalHours: true,
@@ -77,41 +53,39 @@ const Index = () => {
   useEffect(() => {
     const initializeProject = async () => {
       if (!loading && projects.length === 0) {
-        await addProject({
-          name: `New Project 1`,
-          hourlySalary: 50,
-          targetBudget: 10000,
-        });
+        // Create a default project if none exist
+        await handleAddProject();
       } else if (projects.length > 0 && !activeProjectId) {
         setActiveProjectId(projects[0].id);
       }
     };
     initializeProject();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, activeProjectId, loading]);
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
-  const openCreateProject = () => {
-    setProjectFormDialog({ open: true, mode: "create" });
+  const handleAddProject = async () => {
+    const newProjectId = await addProject({
+      name: `New Project ${projects.length + 1}`,
+      hourlySalary: 50,
+      targetBudget: 10000,
+    });
+    if (newProjectId) {
+      setActiveProjectId(newProjectId);
+    }
   };
 
-  const openRenameProject = (id: string) => {
-    setProjectFormDialog({ open: true, mode: "edit", projectId: id });
-  };
+  const handleRenameProject = async (id: string) => {
+    const project = projects.find((p) => p.id === id);
+    if (!project) return;
 
-  const handleProjectFormSubmit = async ({ name, categoryId }: { name: string; categoryId: string | null }) => {
-    if (projectFormDialog.mode === "create") {
-      const id = await addProject({
-        name,
-        hourlySalary: 50,
-        targetBudget: 10000,
-        categoryId,
+    const newName = prompt("Enter new project name:", project.name);
+    if (newName && newName.trim()) {
+      await updateProject(id, { name: newName.trim() });
+      toast({
+        title: "Project renamed",
+        description: `Project renamed to "${newName.trim()}".`,
       });
-      if (id) setActiveProjectId(id);
-    } else if (projectFormDialog.projectId) {
-      await updateProject(projectFormDialog.projectId, { name, categoryId });
-      toast({ title: "Project updated" });
     }
   };
 
@@ -144,7 +118,7 @@ const Index = () => {
   };
 
   const handleAddPeriod = async (period: Omit<WorkPeriod, "id">) => {
-    return await addWorkPeriod(activeProjectId, period);
+    await addWorkPeriod(activeProjectId, period);
   };
 
   const handleDeletePeriod = async (periodId: string) => {
@@ -177,7 +151,7 @@ const Index = () => {
       });
 
       const { data, error } = await supabase.functions.invoke('generate-pdf-report', {
-        body: {
+        body: { 
           project: activeProject,
           visibleCards: visibleCards,
           sortBy: sortBy,
@@ -189,6 +163,7 @@ const Index = () => {
       const today = new Date().toISOString().split('T')[0];
       const fileName = `${activeProject.name.replace(/[^a-zA-Z0-9]/g, '_')}_export_${today}.html`;
 
+      // Create a blob from the HTML response
       const blob = new Blob([data], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -221,11 +196,6 @@ const Index = () => {
     return <div className="min-h-screen bg-background flex items-center justify-center">Initializing...</div>;
   }
 
-  const editingProject =
-    projectFormDialog.mode === "edit" && projectFormDialog.projectId
-      ? projects.find((p) => p.id === projectFormDialog.projectId)
-      : undefined;
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -233,39 +203,50 @@ const Index = () => {
         projects={projects}
         activeProjectId={activeProjectId}
         onSelectProject={setActiveProjectId}
-        onAddProject={openCreateProject}
-        onRenameProject={openRenameProject}
+        onAddProject={handleAddProject}
+        onRenameProject={handleRenameProject}
         onDeleteProject={handleDeleteProject}
         onArchiveProject={setProjectArchived}
-        onManageCategories={() => setCategoriesDialogOpen(true)}
       />
       <main className="container mx-auto px-6 py-8 space-y-6">
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate("/invoices")} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/invoices")}
+            className="gap-2"
+          >
             <FileText className="h-4 w-4" />
             Invoices
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            className="gap-2"
+          >
             <FileDown className="h-4 w-4" />
             Export Report
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSettingsOpen(true)}
+            className="gap-2"
+          >
             <Settings className="h-4 w-4" />
             Display Settings
           </Button>
-          <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-2"
+          >
             <LogOut className="h-4 w-4" />
             Logout
           </Button>
         </div>
-
-        <MyProjectsList
-          projects={projects}
-          categories={categories}
-          activeProjectId={activeProjectId}
-          onSelectProject={setActiveProjectId}
-        />
-
         <ProjectSettings project={activeProject} onUpdateProject={handleUpdateProject} />
         <KPICards project={activeProject} visibleCards={visibleCards} />
         <BudgetCharts project={activeProject} />
@@ -286,25 +267,6 @@ const Index = () => {
         onOpenChange={setSettingsOpen}
         visibleCards={visibleCards}
         onToggleCard={handleToggleCard}
-      />
-
-      <ManageProjectCategoriesDialog
-        open={categoriesDialogOpen}
-        onOpenChange={setCategoriesDialogOpen}
-        categories={categories}
-        onAdd={addCategory}
-        onRename={renameCategory}
-        onDelete={deleteCategory}
-      />
-
-      <ProjectFormDialog
-        open={projectFormDialog.open}
-        onOpenChange={(open) => setProjectFormDialog((s) => ({ ...s, open }))}
-        title={projectFormDialog.mode === "create" ? "New Project" : "Edit Project"}
-        initialName={editingProject?.name ?? `New Project ${projects.length + 1}`}
-        initialCategoryId={editingProject?.categoryId ?? null}
-        categories={categories}
-        onSubmit={handleProjectFormSubmit}
       />
     </div>
   );

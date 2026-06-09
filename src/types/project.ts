@@ -21,11 +21,5 @@ export interface Project {
   workPeriods: WorkPeriod[];
   createdAt: string;
   archived?: boolean;
-  categoryId?: string | null;
 }
 
-export interface ProjectCategory {
-  id: string;
-  name: string;
-  createdAt: string;
-}
