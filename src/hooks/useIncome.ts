@@ -36,7 +36,7 @@ export const useIncome = (userId?: string, selectedCompanyIds: string[] = []) =>
     fetchIncome();
 
     const channel = supabase
-      .channel("income_changes")
+      .channel(`${userId}:income_changes`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "income", filter: `user_id=eq.${userId}` },

@@ -42,7 +42,7 @@ export const useEmployees = (userId?: string) => {
     fetchData();
 
     const channel = supabase
-      .channel("employee_changes")
+      .channel(`${userId}:employee_changes`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "employees", filter: `user_id=eq.${userId}` },

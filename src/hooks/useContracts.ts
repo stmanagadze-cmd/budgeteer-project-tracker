@@ -34,7 +34,7 @@ export function useContracts(userId?: string) {
     fetchContracts();
 
     const channel = supabase
-      .channel("contracts-changes")
+      .channel(`${userId}:contracts-changes`)
       .on("postgres_changes", { event: "*", schema: "public", table: "contracts", filter: `user_id=eq.${userId}` }, () => fetchContracts())
       .on("postgres_changes", { event: "*", schema: "public", table: "change_orders" }, () => fetchContracts())
       .on("postgres_changes", { event: "*", schema: "public", table: "contract_documents" }, () => fetchContracts())

@@ -34,7 +34,7 @@ export function useCompanies(userId?: string) {
     fetchCompanies();
 
     const channel = supabase
-      .channel("companies-changes")
+      .channel(`${userId}:companies-changes`)
       .on(
         "postgres_changes",
         {
