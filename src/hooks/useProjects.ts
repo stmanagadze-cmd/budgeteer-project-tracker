@@ -93,7 +93,7 @@ export const useProjects = (userId: string | undefined) => {
     };
 
     const projectsChannel = supabase
-      .channel("projects-changes")
+      .channel(`${userId}:projects-changes`)
       .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, debouncedFetch)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_periods" }, debouncedFetch)
       .subscribe();

@@ -62,7 +62,7 @@ export default function NewInvoices() {
     fetchInvoices();
 
     const channel = supabase
-      .channel("invoices-changes")
+      .channel(`${userId}:invoices-changes`)
       .on(
         "postgres_changes",
         {

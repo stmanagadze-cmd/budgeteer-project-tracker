@@ -45,7 +45,7 @@ export const useExpenses = (userId?: string, selectedCompanyIds: string[] = []) 
     if (!userId) return;
 
     const channel = supabase
-      .channel("expenses_changes")
+      .channel(`${userId}:expenses_changes`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "expenses", filter: `user_id=eq.${userId}` },

@@ -93,7 +93,7 @@ export const useDashboardData = (userId?: string, selectedCompanyIds: string[] =
     fetchData();
 
     const channel = supabase
-      .channel("dashboard_changes")
+      .channel(`${userId}:dashboard_changes`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "invoices", filter: `user_id=eq.${userId}` },

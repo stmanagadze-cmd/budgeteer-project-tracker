@@ -49,7 +49,7 @@ export const useInvoices = (userId?: string) => {
 
     // Set up real-time subscription
     const channel = supabase
-      .channel("invoices_changes")
+      .channel(`${userId}:invoices_changes`)
       .on(
         "postgres_changes",
         {
