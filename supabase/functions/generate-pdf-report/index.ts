@@ -435,48 +435,69 @@ serve(async (req) => {
 
     console.log('Generating HTML report for project ID:', project.id.substring(0, 8), 'for user:', user.id.substring(0, 8));
 
-    // Generate signed URLs for all work period images
+    // Helper: normalize stored value to bucket-relative object path
+    const toObjectPath = (raw: string): string | null => {
+      if (!raw) return null;
+      const stripQuery = (s: string) => s.split('?')[0].split('#')[0];
+      let value = stripQuery(raw.trim());
+      try {
+        const u = new URL(value);
+        value = u.pathname;
+      } catch { /* not a URL */ }
+      const parts = value.split('/').map(p => {
+        try { return decodeURIComponent(p); } catch { return p; }
+      }).filter(Boolean);
+      const idx = parts.findIndex(p => p === 'work-period-images');
+      const rel = idx >= 0 ? parts.slice(idx + 1).join('/') : parts.join('/');
+      return rel || null;
+    };
+
+    // Convert ArrayBuffer to base64 in chunks (avoid call-stack overflow on large images)
+    const bufferToBase64 = (buf: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(
+          null,
+          Array.from(bytes.subarray(i, i + chunkSize)) as unknown as number[]
+        );
+      }
+      return btoa(binary);
+    };
+
+    // Download each image and inline as a base64 data URI so the exported
+    // HTML is fully self-contained (works offline, no expiring tokens).
     const workPeriodsWithSignedUrls = await Promise.all(
       project.workPeriods.map(async (period) => {
-        if (!period.images || period.images.length === 0) {
-          return period;
-        }
+        if (!period.images || period.images.length === 0) return period;
 
-        const signedImageUrls = await Promise.all(
+        const inlinedImages = await Promise.all(
           period.images.map(async (imagePath) => {
+            const objectPath = toObjectPath(imagePath);
+            if (!objectPath) {
+              console.warn('Invalid image path format:', imagePath);
+              return '';
+            }
             try {
-              // Extract the file path from the stored path or URL
-              const urlParts = imagePath.split('/');
-              const bucketIndex = urlParts.findIndex(part => part === 'work-period-images');
-              
-              if (bucketIndex === -1) {
-                console.warn('Invalid image path format:', imagePath);
-                return imagePath;
-              }
-              
-              const filePath = urlParts.slice(bucketIndex + 1).join('/');
-              
               const { data, error } = await supabaseClient.storage
                 .from('work-period-images')
-                .createSignedUrl(filePath, 3600); // 1 hour expiry
-              
-              if (error) {
-                console.error('Error generating signed URL for image:', error);
-                return imagePath;
+                .download(objectPath);
+              if (error || !data) {
+                console.error('Error downloading image for embed:', objectPath, error?.message);
+                return '';
               }
-              
-              return data.signedUrl;
-            } catch (error) {
-              console.error('Error processing image:', error);
-              return imagePath;
+              const mime = data.type || 'image/jpeg';
+              const base64 = bufferToBase64(await data.arrayBuffer());
+              return `data:${mime};base64,${base64}`;
+            } catch (err) {
+              console.error('Error embedding image:', objectPath, err);
+              return '';
             }
           })
         );
 
-        return {
-          ...period,
-          images: signedImageUrls
-        };
+        return { ...period, images: inlinedImages.filter(Boolean) };
       })
     );
 
