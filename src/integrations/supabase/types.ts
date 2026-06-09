@@ -636,9 +636,34 @@ export type Database = {
           },
         ]
       }
+      project_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           archived: boolean
+          category_id: string | null
           created_at: string
           hourly_salary: number
           id: string
@@ -649,6 +674,7 @@ export type Database = {
         }
         Insert: {
           archived?: boolean
+          category_id?: string | null
           created_at?: string
           hourly_salary?: number
           id?: string
@@ -659,6 +685,7 @@ export type Database = {
         }
         Update: {
           archived?: boolean
+          category_id?: string | null
           created_at?: string
           hourly_salary?: number
           id?: string
@@ -667,7 +694,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "project_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       salary_payments: {
         Row: {
