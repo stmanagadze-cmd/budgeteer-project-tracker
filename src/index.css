@@ -91,3 +91,55 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  .print-sheet {
+    background: #fff;
+    color: #0f172a;
+    font-size: 11px;
+  }
+
+  .print-sheet h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .print-sheet h2 {
+    font-size: 13px;
+    font-weight: 700;
+    margin: 14px 0 6px;
+  }
+
+  .print-summary {
+    border: 1px solid #0f172a;
+    padding: 8px 10px;
+    margin: 10px 0 4px;
+  }
+
+  .print-floor {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-sheet th {
+    background: #0f172a;
+    color: #fff;
+    text-align: left;
+  }
+
+  .print-sheet th,
+  .print-sheet td {
+    border: 1px solid #cbd5e1;
+    padding: 4px 6px;
+  }
+}
