@@ -1,4 +1,4 @@
-import { Building2, Users, FileText, LayoutDashboard, LogOut, Wallet, ClipboardList } from "lucide-react";
+import { Building2, Users, FileText, LayoutDashboard, LogOut, Wallet, ClipboardList, Ruler } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Budgeteer", url: "/budgeteer", icon: LayoutDashboard },
+  { title: "Fin Takeoff", url: "/fin-takeoff", icon: Ruler },
   { title: "Invoices", url: "/invoices", icon: FileText },
   { title: "Contracts", url: "/contracts", icon: ClipboardList },
   { title: "Salaries", url: "/salaries", icon: Wallet },
